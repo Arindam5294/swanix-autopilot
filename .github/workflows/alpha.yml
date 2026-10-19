@@ -1,0 +1,25 @@
+name: Alpha bot (crypto news to Telegram)
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency: { group: alpha, cancel-in-progress: false }
+jobs:
+  run:
+    if: ${{ vars.ALPHA_ON == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults: { run: { working-directory: alpha } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: python bot.py
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - run: |
+          git config user.name "swanix-bot"; git config user.email "bot@users.noreply.github.com"
+          git add -A . && (git diff --cached --quiet || (git commit -m "alpha: seen" && git pull --rebase -q && git push))

@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+"""Turn one viral clip into a finished Botbeat Short (1080x1920, <=28 s):
+hook bar on top, the real footage in the middle, word-timed captions, pro English voiceover.
+Usage: python make_short.py '<json from find_clip.py>'  -> writes out/short.mp4 + out/metadata.json"""
+import json, os, sys, re, asyncio, pathlib, subprocess, shutil, hashlib
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "common"))
+from ai import ask  # same free AI chain: Gemini -> Groq -> OpenRouter
+HERE = pathlib.Path(__file__).resolve().parent
+CFG = json.load(open(HERE / "config.json"))
+OUT = HERE / "out"; WORK = pathlib.Path("/tmp/botbeat")
+FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+W, H, FPS = 1080, 1920, 30
+
+def sh(*a, **k):
+    r = subprocess.run(list(a), capture_output=True, text=True, **k)
+    if r.returncode: raise RuntimeError(" ".join(map(str, a))[:200] + "\n" + r.stderr[-1500:])
+    return r.stdout
+
+def download(url):
+    dst = WORK / "src.mp4"
+    if os.path.exists(url): shutil.copy(url, dst); return dst
+    cmd = ["yt-dlp", "-q", "--no-playlist", "-f", "bv*[height<=1080]+ba/b[height<=1080]/b", "--merge-output-format", "mp4",
+           "--download-sections", f"*0-{CFG['max_clip_minutes']*60}", "-o", str(dst), url]
+    if os.path.exists("cookies.txt"): cmd[1:1] = ["--cookies", "cookies.txt"]
+    sh(*cmd, timeout=900)
+    return dst
+
+def duration(p):
+    return float(sh("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(p)).strip())
+
+def script(clip):
+    prompt = f"""You write YouTube Shorts for Botbeat, an English AI/robot news channel with calm, professional narration.
+Source clip title: {clip['title']}
+Source description: {clip['desc'][:1200]}
+Uploader: {clip.get('uploader','')}  Views: {clip.get('views',0)}
+Rules: only facts stated in the title/description (never invent numbers), no slang, no crypto, no hype words like 'insane'.
+Return ONLY JSON with keys:
+"hook": top-of-screen hook, max 5 words, ALL CAPS, curiosity gap;
+"vo": voiceover, 50-65 words, first sentence is the hook spoken, one surprising fact in the middle, ends with a short question to the viewer;
+"cta": max 5 words ALL CAPS question shown at the end, e.g. "WOULD YOU TRUST IT?";
+"title": viral title under 70 characters with one emoji, ending with " #shorts #ai";
+"description": 2-3 sentences + credit line "Clip: <uploader>" + 8 hashtags;
+"tags": list of 14 tags."""
+    txt = ask(prompt + "\nAnswer with valid JSON only.", min_len=200)
+    m = re.search(r"\{.*\}", txt, re.S)
+    return json.loads(m.group(0))
+
+async def tts(text, mp3):
+    import edge_tts
+    words = []
+    c = edge_tts.Communicate(text, CFG["voice"], rate="+4%", boundary="WordBoundary")
+    with open(mp3, "wb") as f:
+        async for ch in c.stream():
+            if ch["type"] == "audio": f.write(ch["data"])
+            elif ch["type"] == "WordBoundary": words.append({"t": ch["offset"]/1e7, "d": ch["duration"]/1e7, "w": ch["text"]})
+    return words
+
+def pick_segments(src, total):
+    """Fast cuts on scene changes from the most active part of the clip."""
+    d = duration(src)
+    out = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(src), "-t", str(min(d, 600)),
+                          "-vf", "select='gt(scene,0.30)',showinfo", "-an", "-f", "null", "-"],
+                         capture_output=True, text=True).stderr
+    cuts = sorted({round(float(x), 2) for x in re.findall(r"pts_time:([\d.]+)", out)})
+    starts = [0.0] + [c for c in cuts if c < d - 2]
+    segs, t = [], 0.0
+    for i, s in enumerate(starts):
+        nxt = starts[i+1] if i+1 < len(starts) else d
+        ln = max(1.2, min(3.2, nxt - s))
+        if s + ln > d: continue
+        segs.append((s, ln)); t += ln
+        if t >= total: break
+    if t < total:   # few scene changes: one continuous run from the start
+        segs = [(0.0, min(d, total))]
+    return segs
+
+def wrap(s, n=16):
+    words, lines, cur = s.split(), [], ""
+    for w in words:
+        if len(cur) + len(w) + 1 > n and cur: lines.append(cur); cur = w
+        else: cur = (cur + " " + w).strip()
+    return lines + [cur] if cur else lines
+
+def overlay(words, hook, cta, total, credit):
+    from PIL import Image, ImageDraw, ImageFont
+    F = lambda s: ImageFont.truetype(FONT, s)
+    chunks, cur = [], []
+    for w in words:
+        cur.append(w)
+        if len(cur) == 3 or w["w"].endswith((".", ",", "?", "!")): chunks.append(cur); cur = []
+    if cur: chunks.append(cur)
+    caps = []
+    for i, c in enumerate(chunks):
+        t0 = c[0]["t"] + 0.15; t1 = chunks[i+1][0]["t"] + 0.15 if i+1 < len(chunks) else total
+        caps.append((t0, t1, " ".join(x["w"] for x in c).upper()))
+    d_ = WORK / "ov"; shutil.rmtree(d_, ignore_errors=True); d_.mkdir()
+    cache = {}
+    def txt(d, y, s, size, fill):
+        d.text((W//2, y), s, font=F(size), fill=fill, stroke_width=max(6, size//8), stroke_fill=(0, 0, 0), anchor="mm")
+    for i in range(int(total * FPS)):
+        t = i / FPS
+        im = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
+        hl = wrap(hook, 14)[:3]
+        size, gap = (92, 115) if len(hl) <= 2 else (74, 92)
+        for k, line in enumerate(hl):
+            txt(d, 170 + k*gap, line, size, (255, 214, 0) if k == len(hl) - 1 else (255, 255, 255))
+        if t > total - 2.6:
+            for k, line in enumerate(wrap(cta, 16)[:2]): txt(d, 1500 + k*115, line, 84, (255, 214, 0))
+        else:
+            for t0, t1, s in caps:
+                if t0 <= t < t1: txt(d, 1500, s, 78 if len(s) <= 18 else 62, (255, 255, 255))
+        d.text((W-30, 1360), credit, font=F(28), fill=(255, 255, 255), stroke_width=3, stroke_fill=(0, 0, 0), anchor="rm")
+        key = hashlib.md5(im.tobytes()).hexdigest(); p = d_ / f"{i:05d}.png"
+        if key in cache: os.link(cache[key], p)
+        else: im.save(p, compress_level=1); cache[key] = p
+    return d_
+
+def main():
+    clip = json.loads(sys.argv[1])
+    shutil.rmtree(WORK, ignore_errors=True); WORK.mkdir(parents=True); OUT.mkdir(exist_ok=True)
+    src = download(clip["url"])
+    s = script(clip)
+    words = asyncio.run(tts(s["vo"], str(WORK / "vo.mp3")))
+    vo_len = duration(WORK / "vo.mp3")
+    total = min(CFG["max_seconds"], vo_len + 2.8)
+    segs = pick_segments(src, total)
+    BG = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=28:5,eq=brightness=-0.25"
+    FG = "scale=1080:-2:flags=lanczos,crop=1080:'min(ih,1000)'"
+    fc, L = "", []
+    for i, (ss, ln) in enumerate(segs):
+        fc += (f"[0:v]trim=start={ss}:duration={ln},setpts=PTS-STARTPTS,fps={FPS},split[a{i}][b{i}];"
+               f"[a{i}]{BG}[bg{i}];[b{i}]{FG}[fg{i}];[bg{i}][fg{i}]overlay=0:(H-h)/2,setsar=1[s{i}];")
+        L.append(f"[s{i}]")
+    fc += "".join(L) + f"concat=n={len(segs)}:v=1:a=0,trim=duration={total}[base];"
+    fc += f"[base][1:v]overlay=0:0[v];[2:a]adelay=150|150,volume=1.6[vo];[0:a]volume=0.12,atrim=0:{total}[bed];[vo][bed]amix=inputs=2:duration=first:normalize=0,apad,atrim=0:{total},loudnorm=I=-15[a]"
+    ov = overlay(words, s["hook"], s["cta"], total, f"clip: {clip.get('uploader') or 'source'}")
+    has_audio = "audio" in sh("ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(src))
+    if not has_audio:
+        fc = fc.replace(f"[0:a]volume=0.12,atrim=0:{total}[bed];[vo][bed]amix=inputs=2:duration=first:normalize=0,apad", "[vo]apad")
+    sh("ffmpeg", "-v", "error", "-y", "-i", str(src), "-framerate", str(FPS), "-i", str(ov / "%05d.png"), "-i", str(WORK / "vo.mp3"),
+       "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(total), "-r", str(FPS), "-c:v", "libx264", "-preset", "veryfast",
+       "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(WORK / "short.mp4"), timeout=1500)
+    shutil.copy(WORK / "short.mp4", OUT / "short.mp4")
+    s.update({"source_url": clip["url"], "source_views": clip.get("views", 0), "seconds": round(total, 1)})
+    json.dump(s, open(OUT / "metadata.json", "w"), indent=1)
+    print("made", OUT / "short.mp4", round(total, 1), "s")
+
+if __name__ == "__main__":
+    main()

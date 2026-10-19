@@ -1,0 +1,84 @@
+name: Shield Audit refresh
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # every 10 min (GitHub may delay runs a few minutes)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  issues: write
+
+concurrency:
+  group: shield-audit
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: shield/requirements.txt
+
+      - run: pip install -r shield/requirements.txt
+
+      - name: Restore signing key
+        env:
+          ED25519_KEY_B64: ${{ secrets.ED25519_KEY_B64 }}
+        run: |
+          mkdir -p shield/data/.keys
+          if [ -n "$ED25519_KEY_B64" ]; then echo "$ED25519_KEY_B64" | base64 -d > shield/data/.keys/ed25519.key; chmod 600 shield/data/.keys/ed25519.key; fi
+
+      - name: Run audit (retry once)
+        run: |
+          python shield/scripts/run_audit.py > /dev/null || (sleep 60 && python shield/scripts/run_audit.py > /dev/null)
+          python shield/scripts/deep_audit.py > /dev/null
+          python shield/scripts/piece_index.py || true
+          python shield/scripts/sign_report.py || true
+          python shield/scripts/build_cosmos.py
+
+      - name: Alert check
+        id: alert
+        run: |
+          LINE=$(python shield/scripts/alert_check.py)
+          echo "$LINE"
+          echo "line=$LINE" >> "$GITHUB_OUTPUT"
+
+      - name: Alert (Telegram, else a GitHub issue that GitHub emails you)
+        if: startsWith(steps.alert.outputs.line, 'ALERT') || startsWith(steps.alert.outputs.line, 'RECOVERED')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          LINE: ${{ steps.alert.outputs.line }}
+        run: |
+          if [[ "$LINE" == ALERT* ]]; then T="🔴 Shield Audit alert"; else T="🟢 Shield Audit recovered"; fi
+          python common/notify_cli.py "$T: $LINE" || gh issue create --title "$T" --body "$LINE"
+
+      - name: Inject data into pages
+        run: python shield/scripts/inject.py
+
+      - name: Save history back to the repo
+        run: |
+          git config user.name "shield-audit-bot"
+          git config user.email "shield-audit-bot@users.noreply.github.com"
+          git add shield/data shield/site
+          git diff --cached --quiet || (git commit -m "refresh block $(python -c 'import json;print(json.load(open("shield/data/audit_latest.json"))["block"])')" && git pull --rebase -q && git push)
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: shield/site
+      - id: deploy
+        uses: actions/deploy-pages@v4
