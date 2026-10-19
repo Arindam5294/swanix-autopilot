@@ -12,6 +12,7 @@ permissions:
 concurrency: { group: botbeat, cancel-in-progress: false }
 jobs:
   short:
+    if: ${{ github.event_name != 'schedule' || vars.BOTBEAT_GH_CRON == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     services:

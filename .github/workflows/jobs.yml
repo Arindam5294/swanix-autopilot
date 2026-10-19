@@ -9,6 +9,7 @@ permissions:
 concurrency: { group: jobs, cancel-in-progress: false }
 jobs:
   run:
+    if: ${{ github.event_name != 'schedule' || vars.JOBS_ON == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

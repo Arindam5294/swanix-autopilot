@@ -17,6 +17,7 @@ concurrency:
 
 jobs:
   refresh:
+    if: ${{ github.event_name != 'schedule' || vars.SHIELD_ON == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
