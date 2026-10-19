@@ -16,14 +16,29 @@ def sh(*a, **k):
     if r.returncode: raise RuntimeError(" ".join(map(str, a))[:200] + "\n" + r.stderr[-1500:])
     return r.stdout
 
+ATTEMPTS = [[], ["--extractor-args", "youtube:player_client=tv,web_safari"],
+            ["--extractor-args", "youtube:player_client=mweb"], ["--extractor-args", "youtube:player_client=android_vr"]]
+
 def download(url):
+    """Try several YouTube clients, first direct, then through the free Cloudflare WARP proxy if the workflow set one up."""
     dst = WORK / "src.mp4"
     if os.path.exists(url): shutil.copy(url, dst); return dst
-    cmd = ["yt-dlp", "-q", "--no-playlist", "-f", "bv*[height<=1080]+ba/b[height<=1080]/b", "--merge-output-format", "mp4",
-           "--download-sections", f"*0-{CFG['max_clip_minutes']*60}", "-o", str(dst), url]
-    if os.path.exists("cookies.txt"): cmd[1:1] = ["--cookies", "cookies.txt"]
-    sh(*cmd, timeout=900)
-    return dst
+    base = ["yt-dlp", "-q", "--no-playlist", "-f", "bv*[height<=1080]+ba/b[height<=1080]/b", "--merge-output-format", "mp4",
+            "--download-sections", f"*0-{CFG['max_clip_minutes']*60}", "-o", str(dst)]
+    if os.path.exists("cookies.txt"): base += ["--cookies", "cookies.txt"]
+    proxies = [None] + ([os.environ["YTDLP_PROXY"]] if os.environ.get("YTDLP_PROXY") else [])
+    last = None
+    for px in proxies:
+        for extra in ATTEMPTS:
+            cmd = base + extra + (["--proxy", px] if px else []) + [url]
+            try:
+                for f in WORK.glob("src.*"): f.unlink()
+                sh(*cmd, timeout=600)
+                if dst.exists() and dst.stat().st_size > 100000:
+                    print("downloaded via", px or "direct", extra or "default", file=sys.stderr); return dst
+            except Exception as e:
+                last = e; print("download attempt failed:", px or "direct", extra or "default", file=sys.stderr)
+    raise last or RuntimeError("download failed")
 
 def duration(p):
     return float(sh("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(p)).strip())
