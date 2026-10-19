@@ -19,12 +19,23 @@ def sh(*a, **k):
 ATTEMPTS = [[], ["--extractor-args", "youtube:player_client=tv,web_safari"],
             ["--extractor-args", "youtube:player_client=mweb"], ["--extractor-args", "youtube:player_client=android_vr"]]
 
+def trim(p):
+    lim = CFG['max_clip_minutes'] * 60
+    try:
+        if duration(p) > lim + 1:
+            tmp = p.with_name("src_trim.mp4")
+            sh("ffmpeg", "-y", "-v", "error", "-i", str(p), "-t", str(lim), "-c", "copy", str(tmp)); tmp.replace(p)
+    except Exception as e:
+        print("trim skipped:", e, file=sys.stderr)
+
 def download(url):
     """Try several YouTube clients, first direct, then through the free Cloudflare WARP proxy if the workflow set one up."""
     dst = WORK / "src.mp4"
     if os.path.exists(url): shutil.copy(url, dst); return dst
     base = ["yt-dlp", "-q", "--no-playlist", "-f", "bv*[height<=1080]+ba/b[height<=1080]/b", "--merge-output-format", "mp4",
-            "--download-sections", f"*0-{CFG['max_clip_minutes']*60}", "-o", str(dst)]
+            "--hls-prefer-native", "--concurrent-fragments", "4", "-o", str(dst)]
+    # No --download-sections: it hands the download to ffmpeg, which can't use the WARP SOCKS proxy (ffmpeg exit 8).
+    # yt-dlp downloads natively (proxy works), then we trim locally.
     if os.path.exists("cookies.txt"): base += ["--cookies", "cookies.txt"]
     proxies = [None] + ([os.environ["YTDLP_PROXY"]] if os.environ.get("YTDLP_PROXY") else [])
     last = None
@@ -35,6 +46,7 @@ def download(url):
                 for f in WORK.glob("src.*"): f.unlink()
                 sh(*cmd, timeout=600)
                 if dst.exists() and dst.stat().st_size > 100000:
+                    trim(dst)
                     print("downloaded via", px or "direct", extra or "default", file=sys.stderr); return dst
             except Exception as e:
                 last = e; print("download attempt failed:", px or "direct", extra or "default", file=sys.stderr)
