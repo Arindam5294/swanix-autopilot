@@ -38,10 +38,17 @@ jobs:
           CLIP=$(python find_clip.py || true)
           echo "$CLIP"
           { echo "clip<<EOF"; echo "$CLIP"; echo "EOF"; } >> "$GITHUB_OUTPUT"
+      - uses: denoland/setup-deno@v2
       - name: Make the Short
         if: steps.pick.outputs.clip != ''
         env: { CLIP: "${{ steps.pick.outputs.clip }}" }
-        run: python make_short.py "$CLIP"
+        run: |
+          if ! python make_short.py "$CLIP" 2> err.txt; then
+            cat err.txt
+            if grep -q "not a bot" err.txt; then MSG="Botbeat: YouTube blocked the download. Add or refresh the YT_COOKIES secret, then Run workflow again."; else MSG="Botbeat failed: $(tail -c 300 err.txt)"; fi
+            python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "$MSG" || true
+            exit 1
+          fi
       - name: Send it to you
         if: steps.pick.outputs.clip != ''
         run: python send_short.py

@@ -41,6 +41,8 @@ jobs:
           if [ -n "$ED25519_KEY_B64" ]; then echo "$ED25519_KEY_B64" | base64 -d > shield/data/.keys/ed25519.key; chmod 600 shield/data/.keys/ed25519.key; fi
 
       - name: Run audit (retry once)
+        env:
+          SHIELDED_API_KEY: ${{ secrets.SHIELDED_API_KEY }}
         run: |
           python shield/scripts/run_audit.py > /dev/null || (sleep 60 && python shield/scripts/run_audit.py > /dev/null)
           python shield/scripts/deep_audit.py > /dev/null

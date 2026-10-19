@@ -8,6 +8,8 @@ API = "https://shielded-public-api-production.up.railway.app"
 
 def get(path, key=False):
     cmd = ["curl", "-s", "-f", "--max-time", "90", API + path]
+    k = os.environ.get("SHIELDED_API_KEY")
+    if k: cmd[1:1] = ["-H", "x-api-key: " + k]
     return json.loads(subprocess.check_output(cmd))
 
 state = get("/state")

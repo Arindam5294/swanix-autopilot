@@ -17,6 +17,7 @@ Everything that used to run on Hark, running free on GitHub Actions. No Hark usa
    - `GROQ_API_KEY`: free key from console.groq.com/keys (backup writer)
    - `OPENROUTER_API_KEY`: optional second backup
    - `YOUTUBE_API_KEY`: free key from console.cloud.google.com (enable "YouTube Data API v3", then Credentials → API key). Used only to find viral clips
+   - `SHIELDED_API_KEY`: your Shielded API key (Ord Dropz Discord → `/verify` → `/apikey` in #shielded-developers). Needed by Shield.
    - `YT_COOKIES`: optional, only if downloads get blocked
    - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`: optional. Message @BotFather, send /newbot to get the token, then send your bot "hi" and open `https://api.telegram.org/bot<TOKEN>/getUpdates` to read your chat id. Without these, alerts arrive as GitHub issues (GitHub emails you).
 3. **Settings → Pages → Source: GitHub Actions.** Your Shield page will be `https://<you>.github.io/<repo>/` and Cosmos at `/cosmos/`.
