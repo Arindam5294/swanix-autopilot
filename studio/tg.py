@@ -83,6 +83,14 @@ def send_file(chat, kind, path, caption="", reply_to=None):
 
 
 def get_updates(offset):
+    inbox = os.environ.get("STUDIO_INBOX_URL")
+    if inbox and not fake():   # the Cloudflare bot relay holds messages (Telegram webhook mode)
+        req = urllib.request.Request(f"{inbox}/inbox?offset={offset}", headers={"x-studio-key": os.environ.get("STUDIO_INBOX_KEY", ""), "user-agent": "studio"})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return json.loads(r.read()).get("result", [])
+        except Exception as e:
+            raise RuntimeError(f"inbox read failed: {e}")
     if fake():
         return []
     url = f"https://api.telegram.org/bot{_tok()}/getUpdates?offset={offset}&timeout=0&allowed_updates=%5B%22message%22%5D"

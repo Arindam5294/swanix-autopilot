@@ -1,0 +1,15 @@
+name: Studio connect (one-time bot setup)
+on: { workflow_dispatch: {} }
+jobs:
+  connect:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          TG: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GHT: ${{ secrets.STUDIO_GH_TOKEN }}
+          KEY: ${{ secrets.STUDIO_INBOX_KEY }}
+          PIN: ${{ secrets.STUDIO_SETUP_PIN }}
+        run: |
+          jq -n --arg pin "$PIN" --arg tg "$TG" --arg chat "$CHAT" --arg gh "$GHT" --arg key "$KEY" '{pin:$pin,tg:$tg,chat:$chat,gh:$gh,key:$key}' > b.json
+          curl -s -X POST https://swanix-studio-bot.swanixjobs.workers.dev/setup -H 'content-type: application/json' --data @b.json; rm b.json
