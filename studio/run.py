@@ -33,8 +33,22 @@ HELP = """Studio, how to use:
 • /mock <exam and post>: full mock test with answer key, e.g. /mock 3 SSC CGL for 3 mocks
 • /book <exam or topic>: study book, chapter by chapter, with practice MCQs
 • Reply to anything I sent with a change ("make it darker", "add a slide on costs", "make chapter 4 deeper").
-• Send just a link to queue it for Botbeat.
+• Send just a link to queue it for Botbeat.\n• Or tap a button below, then send the topic.
 Replies take about 5-15 min (GitHub runs this every few minutes). Books and mocks take longer; you get progress pings."""
+
+BUTTONS = {"📄 PDF": "pdf", "🖼 Infographic": "info", "🎬 Video": "video", "📝 Mock test": "mock", "📚 Book": "book", "❓ Help": "help"}
+ASK = {"pdf": "📄 PDF: what topic? e.g. solar panels explained", "info": "🖼 Infographic: what topic? Add \"story\" for a 1080x1920 one.",
+       "video": "🎬 Video: what topic? e.g. how drip irrigation works", "mock": "📝 Mock test: which exam and post? e.g. 3 SSC CGL Tier 1",
+       "book": "📚 Book: which exam or topic? e.g. GATE Agricultural Engineering"}
+KEYBOARD = {"keyboard": [[{"text": "📄 PDF"}, {"text": "🖼 Infographic"}], [{"text": "🎬 Video"}, {"text": "📝 Mock test"}],
+                         [{"text": "📚 Book"}, {"text": "❓ Help"}]], "resize_keyboard": True, "is_persistent": True}
+MENU = [{"command": c, "description": d} for c, d in [("pdf", "Polished PDF on a topic"), ("info", "Infographic image"),
+        ("video", "Narrated vertical video"), ("mock", "Full mock test with answers"), ("book", "Study book with MCQs"), ("help", "How to use Studio")]]
+
+
+def send_kb(chat, text, mid=None):
+    """Send with the button keyboard attached."""
+    return tg.call("sendMessage", {"chat_id": str(chat), "text": text, "reply_markup": KEYBOARD, "reply_parameters": tg._reply(mid)})
 
 
 def now():
@@ -115,6 +129,14 @@ def route(update):
     if not text:
         tg.send(chat, "Send me text: a topic, a command like /pdf, or a link.", mid)
         return "empty"
+    if text in BUTTONS:
+        k = BUTTONS[text]
+        if k == "help":
+            send_kb(chat, HELP, mid)
+            return "help"
+        jsave(STATE / "pending.json", {"kind": k, "t": now()})
+        send_kb(chat, ASK[k], mid)
+        return "await-topic"
     toks = text.split()
     if all(URL.match(t) for t in toks):
         QUEUE.parent.mkdir(parents=True, exist_ok=True)
@@ -127,7 +149,11 @@ def route(update):
         return "queued"
     cmd, arg = parse_command(text)
     if cmd in ("help", "start"):
-        tg.send(chat, HELP, mid)
+        try:
+            tg.call("setMyCommands", {"commands": MENU})
+        except Exception:
+            pass
+        send_kb(chat, HELP, mid)
         return "help"
     rep = m.get("reply_to_message") or {}
     if rep and (rep.get("from") or {}).get("is_bot") and cmd is None:
@@ -147,6 +173,10 @@ def route(update):
     if cmd is not None:
         tg.send(chat, "Unknown command. Send /help for the list.", mid)
         return "unknown"
+    pend = jload(STATE / "pending.json")
+    if pend and now() - pend.get("t", 0) < 86400:
+        (STATE / "pending.json").unlink(missing_ok=True)
+        return new_job(chat, mid, pend["kind"], text)
     return new_job(chat, mid, "auto", text)
 
 
