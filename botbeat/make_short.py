@@ -73,14 +73,33 @@ Return ONLY JSON with keys:
     return json.loads(m.group(0))
 
 async def tts(text, mp3):
-    import edge_tts
-    words = []
-    c = edge_tts.Communicate(text, CFG["voice"], rate="+4%", boundary="WordBoundary")
-    with open(mp3, "wb") as f:
-        async for ch in c.stream():
-            if ch["type"] == "audio": f.write(ch["data"])
-            elif ch["type"] == "WordBoundary": words.append({"t": ch["offset"]/1e7, "d": ch["duration"]/1e7, "w": ch["text"]})
-    return words
+    """edge-tts with retries and a backup voice; gTTS as the last resort so a Short is never lost to a TTS hiccup."""
+    import edge_tts, asyncio as _a
+    clean = re.sub(r"[^\w\s.,!?'%$-]", " ", text)
+    clean = re.sub(r"\s+", " ", clean).strip()
+    for voice in [CFG["voice"], "en-US-GuyNeural", "en-US-ChristopherNeural"]:
+        for attempt in range(3):
+            words = []
+            try:
+                c = edge_tts.Communicate(clean, voice, rate="+4%", boundary="WordBoundary")
+                with open(mp3, "wb") as f:
+                    async for ch in c.stream():
+                        if ch["type"] == "audio": f.write(ch["data"])
+                        elif ch["type"] == "WordBoundary": words.append({"t": ch["offset"]/1e7, "d": ch["duration"]/1e7, "w": ch["text"]})
+                if os.path.getsize(mp3) > 1000:
+                    if not words: words = _even_words(clean, mp3)
+                    return words
+            except Exception as e:
+                print(f"tts failed: {voice} try {attempt+1}: {type(e).__name__}", file=sys.stderr)
+            await _a.sleep(5 * (attempt + 1))
+    from gtts import gTTS
+    gTTS(clean, lang="en", tld="com").save(mp3)
+    print("tts: used gTTS backup", file=sys.stderr)
+    return _even_words(clean, mp3)
+
+def _even_words(text, mp3):
+    ws = text.split(); d = duration(mp3) or len(ws) * 0.35; step = d / max(1, len(ws))
+    return [{"t": i * step, "d": step, "w": w} for i, w in enumerate(ws)]
 
 def pick_segments(src, total):
     """Fast cuts on scene changes from the most active part of the clip."""
