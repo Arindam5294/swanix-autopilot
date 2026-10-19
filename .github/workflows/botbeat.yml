@@ -89,6 +89,5 @@ jobs:
         if: always()
         run: |
           rm -f cookies.txt
-          git config user.name "swanix-bot"; git config user.email "bot@users.noreply.github.com"
-          git add used.json queue.txt tg_offset.txt upload_state.json 2>/dev/null || true
-          git diff --cached --quiet || (git commit -m "botbeat: used clips" && git pull --rebase -q && git push)
+          # race-safe save: keeps links Studio queued while this ran (Studio is the only Telegram reader now)
+          python ../common/gitsave.py "botbeat: used clips" --mirror botbeat/used.json botbeat/upload_state.json --lines botbeat/queue.txt

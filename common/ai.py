@@ -29,7 +29,7 @@ PROVIDERS = [
     ("groq", lambda p: openai_style("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY",
                                     os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b"), p)),
     ("openrouter", lambda p: openai_style("https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY",
-                                          os.environ.get("OPENROUTER_MODEL", "deepseek/deepseek-chat-v3.1:free"), p)),
+                                          os.environ.get("OPENROUTER_MODEL", "openrouter/free"), p)),
 ]
 
 def ask(prompt, min_len=2000):

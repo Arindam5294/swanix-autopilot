@@ -1,0 +1,100 @@
+/* Studio book / mock-test print stylesheet (A4, Chrome --print-to-pdf). Theme via CSS variables. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap');
+:root { --accent: #1f4e8c; --accent2: #e07a1f; --ink: #1d232b; --muted: #5b6573; --soft: #eef3fa; --line: #d5dce6;
+        --page: #ffffff; --sans: 'Inter', system-ui, 'Noto Sans', 'DejaVu Sans', sans-serif;
+        --serif: 'Source Serif 4', 'Noto Serif', Georgia, serif; }
+@page { size: A4; margin: 18mm 16mm 20mm 16mm;
+  @bottom-center { content: counter(page); font: 600 8.5pt var(--sans); color: #8a94a3; }
+  @top-right { content: string(chap); font: 500 8pt var(--sans); color: #8a94a3; } }
+@page cover { margin: 0; @bottom-center { content: none; } @top-right { content: none; } }
+@page front { @top-right { content: none; } }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font: 10.6pt/1.55 var(--serif); color: var(--ink); background: var(--page); }
+h1, h2, h3, h4, .sans { font-family: var(--sans); }
+h2 { font-size: 15pt; color: var(--accent); margin: 18pt 0 6pt; padding-bottom: 3pt; border-bottom: 1.5pt solid var(--line); break-after: avoid; }
+h3 { font-size: 12pt; margin: 13pt 0 4pt; color: var(--ink); break-after: avoid; }
+h4 { font-size: 10.8pt; margin: 10pt 0 3pt; color: var(--muted); break-after: avoid; }
+p { margin: 0 0 7pt; text-align: justify; hyphens: auto; }
+ul, ol { margin: 0 0 8pt; padding-left: 16pt; } li { margin: 0 0 2.5pt; }
+strong { color: #0f1720; }
+table { width: 100%; border-collapse: collapse; margin: 8pt 0 10pt; font: 9.2pt/1.4 var(--sans); break-inside: avoid; }
+th { background: var(--accent); color: #fff; text-align: left; padding: 5pt 6pt; font-weight: 600; }
+td { padding: 4.5pt 6pt; border-bottom: 0.6pt solid var(--line); vertical-align: top; }
+tr:nth-child(even) td { background: #f6f8fb; }
+td, th, p, li { overflow-wrap: break-word; }
+img, svg { max-width: 100%; height: auto; }
+svg { display: block; margin: 6pt auto; break-inside: avoid; }
+pre, code { font-family: 'DejaVu Sans Mono', monospace; font-size: 9pt; white-space: pre-wrap; }
+.callout { border-left: 3.5pt solid var(--accent); background: var(--soft); padding: 7pt 10pt; margin: 9pt 0; border-radius: 0 5pt 5pt 0; break-inside: avoid; font-family: var(--sans); font-size: 9.6pt; }
+.callout.tip { border-color: #1f9d6b; background: #ebf7f1; }
+.callout.warn { border-color: #d0453b; background: #fdf0ef; }
+.callout.exam { border-color: var(--accent2); background: #fdf3e8; }
+.callout .t, .callout b:first-child { display: block; font-weight: 700; margin-bottom: 2pt; }
+.formula { border: 1pt solid var(--line); border-radius: 6pt; padding: 7pt 11pt; margin: 9pt 0; background: #fbfcfe; break-inside: avoid; font-family: var(--sans); }
+.formula .t { font: 700 8.5pt var(--sans); text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin-bottom: 3pt; }
+.formula .f { font: 600 11pt 'DejaVu Serif', var(--serif); margin: 2pt 0; }
+.example { border: 1pt dashed #b7c3d4; border-radius: 6pt; padding: 7pt 11pt; margin: 9pt 0; break-inside: avoid; }
+.example .t { font: 700 9.5pt var(--sans); color: var(--accent2); margin-bottom: 3pt; }
+.keypoints { columns: 2; column-gap: 16pt; font-family: var(--sans); font-size: 9.6pt; }
+/* cover */
+.cover { page: cover; height: 297mm; width: 210mm; position: relative; overflow: hidden; color: #fff;
+  background: radial-gradient(120% 80% at 85% 10%, color-mix(in srgb, var(--accent2) 70%, transparent) 0%, transparent 55%),
+              linear-gradient(160deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 55%, #000) 100%); break-after: page; }
+.cover .inner { position: absolute; left: 22mm; right: 22mm; top: 62mm; font-family: var(--sans); }
+.cover .kicker { font-size: 10pt; letter-spacing: .25em; text-transform: uppercase; opacity: .85; margin-bottom: 10mm; }
+.cover h1 { font-size: 38pt; line-height: 1.08; margin: 0 0 7mm; font-weight: 800; letter-spacing: -0.01em; }
+.cover .sub { font-size: 14pt; opacity: .92; max-width: 140mm; line-height: 1.4; }
+.cover .blurb { margin-top: 12mm; font: 10.5pt/1.55 var(--serif); opacity: .9; max-width: 135mm; }
+.cover .meta { position: absolute; left: 22mm; right: 22mm; bottom: 22mm; font: 500 9.5pt var(--sans); opacity: .85;
+  border-top: .8pt solid rgba(255,255,255,.4); padding-top: 4mm; display: flex; justify-content: space-between; }
+.cover .warn { margin-top: 10mm; display: inline-block; background: rgba(255,255,255,.14); border: .8pt solid rgba(255,255,255,.45);
+  padding: 3mm 5mm; border-radius: 3mm; font-size: 9.5pt; }
+/* contents + index */
+.front { page: front; }
+.toc { break-after: page; }
+.toc h2, .index h2 { font-size: 20pt; border: 0; margin-top: 0; }
+.toc ol { list-style: none; padding: 0; font-family: var(--sans); }
+.toc li { display: flex; align-items: baseline; gap: 6pt; padding: 4pt 0; border-bottom: .5pt dotted #c5cdd8; font-size: 10.5pt; }
+.toc li .n { color: var(--accent); font-weight: 700; width: 22pt; }
+.toc li .ttl { flex: 1; } .toc li .pg { font-weight: 600; color: var(--muted); }
+.index { break-before: page; columns: 2; column-gap: 18pt; font: 9.4pt/1.5 var(--sans); }
+.index h2 { column-span: all; }
+.index .letter { font-weight: 800; color: var(--accent); margin: 8pt 0 2pt; break-after: avoid; }
+.index .ent { display: flex; justify-content: space-between; gap: 6pt; break-inside: avoid; }
+.index .ent .pg { color: var(--muted); }
+/* chapters */
+.chapter { break-before: page; }
+.chap-head { string-set: chap content(text); }
+.chap-open { border-radius: 8pt; padding: 14pt 16pt; margin: 0 0 12pt; color: #fff; font-family: var(--sans);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #000)); break-inside: avoid; }
+.chap-open .num { font-size: 9pt; letter-spacing: .2em; text-transform: uppercase; opacity: .85; }
+.chap-open h1 { font-size: 22pt; margin: 3pt 0 4pt; line-height: 1.15; }
+.chap-open .obj { font-size: 9.5pt; opacity: .92; }
+.marker { position: absolute; font-size: 1px; color: transparent; }
+/* questions */
+.qsec h2 { margin-top: 14pt; }
+.q { display: flex; gap: 6pt; margin: 0 0 8pt; break-inside: avoid; font-family: var(--sans); font-size: 9.8pt; line-height: 1.45; }
+.q .qn { font-weight: 700; color: var(--accent); min-width: 20pt; }
+.q .qb { flex: 1; }
+.q .qt { margin-bottom: 3pt; }
+.opts { list-style: none; padding: 0; margin: 0; }
+.opts.two { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12pt; }
+.opts li { margin: 0 0 1.5pt; } .opts .ol { font-weight: 600; color: var(--muted); }
+.key { font: 9pt var(--sans); } .key td { border: .6pt solid var(--line); text-align: center; padding: 3pt; }
+.sol { font: 9.3pt/1.45 var(--sans); margin: 0 0 6pt; break-inside: avoid; }
+.sol .chk { font-size: 7.5pt; color: #1f9d6b; border: .5pt solid #1f9d6b; border-radius: 3pt; padding: 0 3pt; margin-left: 4pt; }
+.pattern td:first-child { font-weight: 600; }
+.instr li { font-family: var(--sans); font-size: 9.8pt; }
+.mock-head { background: var(--soft); border-radius: 8pt; padding: 10pt 14pt; margin-bottom: 10pt; font-family: var(--sans);
+  display: flex; justify-content: space-between; align-items: center; break-inside: avoid; }
+.mock-head h1 { font-size: 17pt; margin: 0; color: var(--accent); }
+.mock-head .m { font-size: 9.5pt; color: var(--muted); text-align: right; }
+.part { break-before: page; }
+/* dark theme (edit "make it darker") */
+body.dark { --page: #12161d; --ink: #e6e9ee; --muted: #a2acba; --soft: #1c2430; --line: #2f3a49; }
+body.dark strong { color: #fff; } body.dark tr:nth-child(even) td { background: #18202b; }
+body.dark .callout.tip { background: #12261e; } body.dark .callout.warn { background: #2a1615; } body.dark .callout.exam { background: #2a1f12; }
+body.dark .formula { background: #161d27; } body.dark .chap-open { color: #fff; }
+
+.q table.dt { width: auto; min-width: 45%; margin: 4pt 0; font-size: 9pt; } .q table.dt th { padding: 3pt 8pt; } .q table.dt td { padding: 2.5pt 8pt; }

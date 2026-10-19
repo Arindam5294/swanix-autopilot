@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Pick the next source clip. Order: links you send to the Telegram bot -> botbeat/queue.txt -> YouTube search.
+"""Pick the next source clip. Order: botbeat/queue.txt (links you send the Telegram bot are queued there by
+the Studio workflow, the only Telegram reader) -> YouTube search.
 Rules: viral only (min_views), unused, no crypto. Prints JSON {url,title,desc,views,source} or nothing."""
 import json, os, sys, pathlib, subprocess, datetime, urllib.request, urllib.parse, re
 HERE = pathlib.Path(__file__).resolve().parent
@@ -34,21 +35,6 @@ def meta(url):
     return {"url": url, "title": j.get("title") or "", "desc": (j.get("description") or "")[:1500],
             "views": j.get("view_count") or 0, "uploader": j.get("uploader") or ""}
 
-def telegram_links():
-    tok, chat = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
-    if not tok: return []
-    off_f = HERE / "tg_offset.txt"
-    off = int(off_f.read_text()) if off_f.exists() else 0
-    d = get(f"https://api.telegram.org/bot{tok}/getUpdates?offset={off}&timeout=0")
-    links = []
-    for u in d.get("result", []):
-        off = max(off, u["update_id"] + 1)
-        m = u.get("message") or {}
-        if str(m.get("chat", {}).get("id")) != str(chat): continue
-        links += URL_RE.findall(m.get("text", "") or "")
-    off_f.write_text(str(off))
-    return links
-
 def queue_links():
     q = HERE / "queue.txt"
     return [l.strip() for l in q.read_text().splitlines() if l.strip().startswith("http")] if q.exists() else []
@@ -81,10 +67,7 @@ def youtube_search():
     return uniq
 
 def main():
-    new = telegram_links()
-    if new:                                  # keep every link you sent, use them one per run
-        with open(HERE / "queue.txt", "a") as f: f.write("\n".join(new) + "\n")
-    manual = queue_links()
+    manual = queue_links()                   # links you send the bot land here (studio/run.py queues them)
     for url in manual:                       # links you chose yourself skip the view bar
         if url in USED: continue
         m = meta(url) or {"url": url, "title": "", "desc": "", "views": 0, "uploader": ""}
