@@ -1,4 +1,4 @@
-name: Botbeat Shorts (made for you, sent to Telegram)
+name: Botbeat Shorts (made and uploaded to YouTube)
 on:
   schedule:
     - cron: "0 2,14 * * *"     # 7:30 AM and 7:30 PM IST
@@ -66,6 +66,19 @@ jobs:
             python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "$MSG" || true
             exit 1
           fi
+      - name: Upload to YouTube (API, then scheduled, then browser)
+        if: steps.pick.outputs.clip != ''
+        continue-on-error: true
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: |
+          if [ -f cookies.txt ]; then pip install -q playwright && python -m playwright install --with-deps chromium > /dev/null 2>&1 || true; fi
+          python upload_youtube.py && echo uploaded || echo "all routes failed, Telegram gets the file"
+      - uses: actions/upload-artifact@v4
+        if: always() && hashFiles('botbeat/out/upload_error.png') != ''
+        with: { name: upload-error-screenshot, path: botbeat/out/upload_error.png, retention-days: 7 }
       - name: Send it to you
         if: steps.pick.outputs.clip != ''
         run: python send_short.py
@@ -77,5 +90,5 @@ jobs:
         run: |
           rm -f cookies.txt
           git config user.name "swanix-bot"; git config user.email "bot@users.noreply.github.com"
-          git add used.json queue.txt tg_offset.txt 2>/dev/null || true
+          git add used.json queue.txt tg_offset.txt upload_state.json 2>/dev/null || true
           git diff --cached --quiet || (git commit -m "botbeat: used clips" && git pull --rebase -q && git push)
