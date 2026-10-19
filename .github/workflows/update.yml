@@ -1,0 +1,39 @@
+name: update
+on:
+  push:
+    paths:
+      - ".github/workflows/update.yml"
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "base64 tar.gz URL"
+        required: false
+        default: "https://paste.rs/rw5Gq"
+      tag:
+        description: "label for the commit"
+        required: false
+        default: "studio-engine"
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply package
+        env:
+          URL: ${{ github.event.inputs.url || 'https://paste.rs/rw5Gq' }}
+          TAG: ${{ github.event.inputs.tag || 'studio-engine' }}
+        run: |
+          set -e
+          curl -sf "$URL" | base64 -d | tar xz --exclude=.github
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "nothing to change"
+            exit 0
+          fi
+          git commit -m "🎬 studio: motion-graphics engine ($TAG)"
+          git pull --rebase
+          git push
