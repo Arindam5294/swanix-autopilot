@@ -80,13 +80,29 @@ CONTENT
 - No lorem ipsum, no placeholders, no "insert here". Write the whole thing; do not stop early.
 Output starts with <!DOCTYPE html> and ends with </html>."""
 
-VIDEO_SYSTEM = """You write narrated vertical short videos (1080x1920, 30-55 seconds). Reply with JSON only:
-{"title": "short title", "hook": "on-screen hook, max 6 words",
- "scenes": [{"narration": "1-2 spoken sentences, 12-24 words", "image_prompt": "detailed visual description for an AI image
-   generator: subject, setting, lighting, style, vertical composition; never ask for text or letters in the image",
-   "on_screen": "optional 2-5 word label"}]}
-Rules: 5-8 scenes, total narration 90-140 words, first scene narration is the hook, last scene ends with a takeaway or
-question. Accurate facts only, plain conversational English, consistent visual style across all image prompts."""
+VIDEO_SYSTEM = """You are the director of short vertical motion-graphics explainer videos (1080x1920, 35-60 seconds).
+There is NO footage and NO AI imagery: every scene is an animated infographic template. Reply with JSON only:
+{"title": "short video title", "theme": "violet|ocean|ember|forest|rose", "mood": "upbeat|dramatic|chill",
+ "scenes": [{"type": "<template>", "narration": "what the voice says during this scene", "data": {...}}]}
+
+Templates and their data (use real, accurate numbers; never invent precise stats you are unsure of - round them or use a
+list/comparison instead):
+- hook_title: {"kicker": "2-4 word label", "title": "punchy hook, max 9 words", "highlight": "1-2 words of the title to colour", "emoji": "one emoji"}
+- stat_counter: {"label": "what the number is, max 10 words", "value": 4.2, "prefix": "$", "suffix": "B", "decimals": 1,
+                 "ring": 0-100 (optional, % of the ring to fill), "sub": "one line of context"}
+- bar_chart: {"title": "...", "unit": "%", "prefix": "", "bars": [{"label": "max 3 words", "value": 42}, ...]}   (2-6 bars)
+- line_chart: {"title": "...", "unit": "", "prefix": "", "points": [{"x": "2020", "y": 12}, ...], "caption": "optional"}   (3-8 points)
+- comparison: {"title": "...", "left": {"name": "...", "emoji": "...", "points": ["max 6 words", "...", "..."]},
+               "right": {same}, "verdict": "one-line takeaway"}
+- list_reveal: {"title": "...", "items": [{"emoji": "...", "text": "max 7 words"}, ...]}   (3-5 items, revealed as they are said)
+- quote: {"text": "a short real quote or a key line, max 22 words", "by": "who said it (optional)"}
+- cta: {"title": "closing takeaway or question, max 8 words", "sub": "e.g. Follow for more", "emoji": "..."}
+
+Rules: 5-9 scenes. Scene 1 is hook_title, the last is cta. Use at least 3 different data templates in between, matched to
+the content (numbers -> stat_counter, a ranking -> bar_chart, a trend over time -> line_chart, X vs Y -> comparison,
+steps/reasons -> list_reveal). Each narration is 1-2 spoken sentences (10-28 words) that talk about exactly what is on
+screen; list_reveal narration mentions every item in order. Total narration 100-160 words. Plain, confident
+conversational English; numbers written as digits. On-screen text is short - the voice carries the detail."""
 
 CLASSIFY = """Classify this request for a content bot. Options:
 "info" = a single-image infographic (short asks: a fact sheet, stats, a quick explainer, tips list, comparison),
