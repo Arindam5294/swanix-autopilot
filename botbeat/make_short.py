@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Turn one viral clip into a finished Botbeat Short (1080x1920, <=28 s):
-hook bar on top, the real footage in the middle, word-timed captions, pro English voiceover.
+hook bar on top, the real footage in the middle, word-timed captions, pro English voiceover
+(signature local OmniVoice narrator, edge-tts/gTTS as backups).
 Usage: python make_short.py '<json from find_clip.py>'  -> writes out/short.mp4 + out/metadata.json"""
 import json, os, sys, re, asyncio, pathlib, subprocess, shutil, hashlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "common"))
@@ -72,11 +73,39 @@ Return ONLY JSON with keys:
     m = re.search(r"\{.*\}", txt, re.S)
     return json.loads(m.group(0))
 
+def omni_tts(clean, mp3):
+    """Signature Botbeat voice: OmniVoice (VoiceStudio's engine), local + free. Returns words or None."""
+    if os.environ.get("BOTBEAT_VOICE", CFG.get("voice_engine", "omni")) != "omni":
+        return None
+    try:
+        import omnivoice  # noqa: F401
+    except Exception:  # install on the runner (CPU torch, ~3 min); any hiccup -> edge-tts
+        try:
+            pip = [sys.executable, "-m", "pip", "install", "-q"]
+            subprocess.run(pip + ["torch", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cpu"], check=True, timeout=300)
+            subprocess.run(pip + ["omnivoice", "soundfile", "faster-whisper"], check=True, timeout=300)
+            print("tts: OmniVoice installed", file=sys.stderr)
+        except Exception as e:
+            print(f"tts: OmniVoice install failed ({type(e).__name__}), using edge-tts", file=sys.stderr); return None
+    tf, wj = WORK / "vo.txt", WORK / "vo_words.json"
+    tf.write_text(clean)
+    try:
+        subprocess.run([sys.executable, str(HERE / "omni_tts.py"), str(tf), mp3, str(wj)],
+                       check=True, timeout=int(CFG.get("omni_timeout", 900)))
+        words = json.load(open(wj))
+        if os.path.getsize(mp3) > 1000 and words:
+            print("tts: used OmniVoice signature voice", file=sys.stderr); return words
+    except Exception as e:
+        print(f"tts: OmniVoice failed ({type(e).__name__}), falling back to edge-tts", file=sys.stderr)
+    return None
+
 async def tts(text, mp3):
-    """edge-tts with retries and a backup voice; gTTS as the last resort so a Short is never lost to a TTS hiccup."""
+    """OmniVoice signature voice first; edge-tts with retries and backup voices next; gTTS last, so a Short is never lost."""
     import edge_tts, asyncio as _a
     clean = re.sub(r"[^\w\s.,!?'%$-]", " ", text)
     clean = re.sub(r"\s+", " ", clean).strip()
+    words = omni_tts(clean, mp3)
+    if words: return words
     for voice in [CFG["voice"], "en-US-GuyNeural", "en-US-ChristopherNeural"]:
         for attempt in range(3):
             words = []
