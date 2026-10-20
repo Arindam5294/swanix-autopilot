@@ -41,6 +41,7 @@ jobs:
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      ORACLE_SHADOW: ${{ vars.ORACLE_SHADOW }}   # unset = forecast/oracle_config.json decides (shadow on)
       PYTHONUNBUFFERED: "1"
       HF_HUB_DISABLE_PROGRESS_BARS: "1"
     steps:
@@ -67,7 +68,7 @@ jobs:
       - name: Keep this pair's result
         if: always()
         run: |
-          mkdir -p part; for f in sent latest alerts; do [ -f forecast/$f.json ] && cp forecast/$f.json part/$f.json; done; true
+          mkdir -p part; for f in sent latest alerts calls blocked; do [ -f forecast/$f.json ] && cp forecast/$f.json part/$f.json; done; true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -92,22 +93,28 @@ jobs:
               try: return json.loads(p.read_text())
               except Exception: return d
           sent = load(F / "sent.json", {}); alerts = {a["id"]: a for a in load(F / "alerts.json", [])}; pairs = {}
+          calls = {c["id"]: c for c in load(F / "calls.json", [])}
+          blocked = {(b.get("ts"), b.get("sym"), b.get("side")): b for b in load(F / "blocked.json", [])}
           old = load(F / "latest.json", {"pairs": []})
           for d in parts:
               for k, v in load(d / "sent.json", {}).items(): sent[k] = max(v, sent.get(k, 0))
               for a in load(d / "alerts.json", []): alerts.setdefault(a["id"], a)
+              for c in load(d / "calls.json", []): calls.setdefault(c["id"], c)
+              for b in load(d / "blocked.json", []): blocked.setdefault((b.get("ts"), b.get("sym"), b.get("side")), b)
               lt = load(d / "latest.json", None)
               if lt and lt.get("at") != old.get("at"):
                   for p in lt.get("pairs", []): pairs[(p["pair"], p["tf"])] = p
           now = time.time()
+          (F / "calls.json").write_text(json.dumps(sorted(calls.values(), key=lambda c: c["ts"]), indent=1, ensure_ascii=False))
+          (F / "blocked.json").write_text(json.dumps(sorted([b for b in blocked.values() if now - b.get("ts", now) < 7 * 86400], key=lambda b: b.get("ts", 0)), indent=1, ensure_ascii=False))
           (F / "sent.json").write_text(json.dumps({k: v for k, v in sent.items() if now - v < 86400}))
           (F / "alerts.json").write_text(json.dumps(sorted([a for a in alerts.values() if now - a["ts"] < 3 * 86400], key=lambda a: a["ts"]), indent=1, ensure_ascii=False))
           if pairs:
               at = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=5, minutes=30))).strftime("%d %b %I:%M %p")
               (F / "latest.json").write_text(json.dumps({"at": at, "pairs": list(pairs.values())}, indent=1))
-          print(len(parts), "parts,", len(alerts), "alerts kept")
+          print(len(parts), "parts,", len(alerts), "alerts kept,", len(calls), "calls in ledger")
           PY
           python3 forecast/learn.py || true
           git config user.name "swanix-bot 🐸"; git config user.email "bot@swanix.local"
-          for f in forecast/sent.json forecast/latest.json forecast/alerts.json forecast/learnings.json; do [ -f "$f" ] && git add "$f"; done
+          for f in forecast/sent.json forecast/latest.json forecast/alerts.json forecast/learnings.json forecast/calls.json forecast/blocked.json forecast/scorecard.json; do [ -f "$f" ] && git add "$f"; done
           git diff --cached --quiet || (git commit -qm "🐸 oracle state" && git pull -q --rebase && git push -q) || true

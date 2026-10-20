@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT / "Kronos"))
 sys.path.insert(0, str(ROOT.parent / "common"))
 from model import Kronos, KronosTokenizer, KronosPredictor  # noqa: E402
 import torch  # noqa: E402
+import guards as G  # noqa: E402  (shadow mode, HTF trend, min R:R, closed candles, grading, bias guard)
 
 IST = timezone(timedelta(hours=5, minutes=30))
 LOOKBACK, PRED = 512, int(os.getenv("PRED_LEN", "24"))
@@ -26,7 +27,8 @@ def klines(sym, tf, limit=1000):
     u = f"https://data-api.binance.vision/api/v3/klines?symbol={sym}&interval={tf}&limit={limit}"
     rows = json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "swanix-oracle"}), timeout=30).read())
     df = pd.DataFrame(rows, columns="t open high low close volume ct amount n tb tq x".split())
-    df = df.iloc[:-1]  # drop the candle still forming
+    now_ms = int(time.time() * 1000)
+    df = df[df["ct"].astype("int64") < now_ms]  # closed candles only: never read the forming candle (no repaint)
     for c in ["open", "high", "low", "close", "volume", "amount"]:
         df[c] = df[c].astype(float)
     df["timestamps"] = pd.to_datetime(df["t"], unit="ms")
@@ -224,6 +226,42 @@ def reanchor(plan, now_px):
     return plan, ("Reward to risk from the live price is only %.1f:1" % plan["rr"]) if plan["rr"] < 1.2 else None
 
 
+def finalize(plan, sl, score):
+    """Re-derive %, leverage and $ outcomes after the stop moved to real structure."""
+    e, side = plan["entry"], (1 if plan["side"] == "LONG" else -1)
+    sl_d = abs(1 - sl / e)
+    tp1_d, tp2_d = side * (plan["tp1"] / e - 1), side * (plan["tp2"] / e - 1)
+    lev = max(1, int(min(LEV_MAX, 1 / (1.8 * sl_d + 0.005))))
+    if score < 65:
+        lev = max(1, min(lev, int(lev * 0.6)))
+    n = plan["margin"] * lev; fees = n * 2 * FEE
+    rr, _ = G.net_rr(plan["side"], e, sl, plan["tp1"])
+    plan.update(sl=sl, sl_pct=sl_d, tp1_pct=tp1_d, tp2_pct=tp2_d, rr=rr, lev=lev,
+                loss=n * sl_d + fees, win1=n * tp1_d - fees, win2=n * tp2_d - fees, liq_pct=max(0.0, 1 / lev - 0.005))
+    return plan
+
+
+def apply_guards(sym, plan, hist, score, cfg, ledger):
+    """Returns (plan or None, reason, htf). Order: structural stop -> min R:R -> HTF trend -> bias guard."""
+    sl = G.structural_stop(plan["side"], plan["entry"], plan["sl"], list(hist["high"]), list(hist["low"]))
+    plan = finalize(plan, sl, score)
+    ok, rr, why = G.rr_ok(plan["side"], plan["entry"], plan["sl"], plan["tp1"], cfg["min_rr"])
+    if not ok:
+        return None, why, None
+    try:
+        htf = G.htf_trend(sym)
+    except Exception as e:
+        return None, f"Higher-timeframe check failed ({e}), no call", None
+    ok, why = G.trend_allows(plan["side"], htf)
+    if not ok:
+        return None, why, htf
+    ok, why = G.bias_guard(G.recent_sides(ledger, cfg["bias_window"]), plan["side"], htf,
+                           cfg["bias_window"], cfg["bias_max_share"])
+    if not ok:
+        return None, why, htf
+    return plan, None, htf
+
+
 def fmt(p):
     return f"{p:,.2f}" if p >= 1 else f"{p:.6f}"
 
@@ -249,6 +287,15 @@ def main():
     report = []
     global PLANS
     PLANS = []
+    cfg = G.config()
+    ledger = G.load(G.LEDGER_F, [])
+    card = G.scorecard(ledger, cfg)
+    POST = G.can_post(cfg, card)
+    hit_txt = "n/a" if card["hit_rate"] is None else f"{card['hit_rate'] * 100:.0f}%"
+    shadow_note = (f"🧪 SHADOW MODE: calls are logged and graded, not signals. Record so far: {card['window']} resolved, "
+                   f"hit {hit_txt} ({card['gate_reason']}).") if not POST else None
+    if shadow_note:
+        msg.insert(1, shadow_note)
     for pr in pairs:
         sym, tf = pr.strip().upper().split(":") if ":" in pr else (pr.strip().upper(), "1h")
         tf = tf.lower()
@@ -287,13 +334,26 @@ def main():
                 if plan is None and SCAN:
                     print(sym, "no setup:", rw); continue
             if plan:
+                gplan, why, htf = apply_guards(sym, plan, hist, score, cfg, ledger)
+                if gplan is None:
+                    G.log_blocked({"ts": int(time.time()), "sym": sym, "tf": tf, "side": plan["side"], "reason": why,
+                                   "entry": plan["entry"], "htf": {k: v.get("trend") for k, v in (htf or {}).items()}})
+                    print(sym, "blocked:", why)
+                    warns.append(why)
+                    call = "NO TRADE (blocked by guard)"
+                    if SCAN:
+                        continue
+                plan = gplan
+            if plan and not POST:
+                line += f"\n🧪 Shadow {plan['side']} call logged for grading (entry {fmt(plan['entry'])}, stop {fmt(plan['sl'])}, TP1 {fmt(plan['tp1'])}, R:R {plan['rr']:.1f}). Not a signal."
+            if plan and POST:
                 line += (f"\n🎯 Plan ({plan['side']}): entry ~{fmt(plan['entry'])} (live price)"
                          f"\n• Stop loss {fmt(plan['sl'])} ({plan['sl_pct']*100:.2f}% away)"
                          f"\n• TP1 {fmt(plan['tp1'])} ({plan['tp1_pct']*100:+.2f}%), TP2 {fmt(plan['tp2'])} ({plan['tp2_pct']*100:+.2f}%) · R:R {plan['rr']:.1f}"
                          f"\n• Size: ${plan['margin']:.0f} margin at {plan['lev']}x max (liq ~{plan['liq_pct']*100:.1f}% away, past the stop)"
                          f"\n• If stopped: -${plan['loss']:.2f} · TP1: +${plan['win1']:.2f} · TP2: +${plan['win2']:.2f} (fees in)"
                          f"\n• Take half at TP1, move stop to entry")
-            if plan:   # invalidation = the stop (the p10/p90 of the end price can sit on the wrong side of entry)
+            if plan and POST:   # invalidation = the stop (the p10/p90 of the end price can sit on the wrong side of entry)
                 line += f"\n• Invalid if a 1h candle closes {'below' if plan['side'] == 'LONG' else 'above'} {fmt(plan['sl'])}"
             if warns:
                 line += "\n⚠️ " + "\n⚠️ ".join(warns)
@@ -302,6 +362,13 @@ def main():
                 print(sym, "no setup: backtest too thin or weak", bt); continue
             if SCAN and not (plan and score >= SCAN_MIN and not any("skip" in w.lower() or "lost money" in w for w in warns)):
                 print(sym, "no setup:", call, score); continue
+            if plan and SCAN:   # every scan call that survives the guards goes into the grading ledger (shadow or live)
+                if not G.is_dupe(ledger, sym, tf, plan["side"], time.time(), cfg["dedupe_hours"]):
+                    ledger.append(G.new_call(sym, tf, plan["side"], plan["entry"], plan["sl"], plan["tp1"], plan["tp2"],
+                                             int(df["timestamps"].iloc[-1].value // 10**6), "live" if POST else "shadow",
+                                             extra={"confidence": score, "rr": round(plan["rr"], 2),
+                                                    "htf": {k: v.get("trend") for k, v in (htf or {}).items()}}))
+                    G.save(G.LEDGER_F, ledger)
             if SCAN:
                 k = f"{sym}:{tf}:{plan['side']}"
                 if time.time() - SENT.get(k, 0) < 6 * 3600:   # same setup already pitched in the last 6h
@@ -320,7 +387,7 @@ def main():
             if not SCAN:
                 msg.append(f"⚠️ {sym} {tf}: skipped ({str(e)[:80]})\n")
     SENT_F.write_text(json.dumps({k: v for k, v in SENT.items() if time.time() - v < 86400}))
-    if SCAN and len(msg) <= 2:
+    if SCAN and len(msg) <= (3 if shadow_note else 2):
         print("scan: no strong setup right now, staying quiet")
         return
     msg.append(WATERMARK)
@@ -328,6 +395,11 @@ def main():
     if SCAN:
         msg[0] = msg[0].replace("Swanix Price Oracle", "Swanix Trade Alert")
     (ROOT / "latest.json").write_text(json.dumps({"at": now, "pairs": report}, indent=1))
+    if SCAN and not POST:
+        (ROOT / "latest.json").write_text(json.dumps({"at": now, "pairs": report}, indent=1))
+        print("SHADOW MODE: setups logged to calls.json for grading, nothing written to alerts.json (not posted).")
+        print(text)
+        return
     if SCAN:
         # Alerts go out through @swanixalertsbot: it reads forecast/alerts.json and broadcasts to every subscriber.
         f = ROOT / "alerts.json"
