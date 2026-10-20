@@ -152,6 +152,32 @@ def risk_plan(call, last, c, hist, score):
             "loss": loss, "win1": win1, "win2": win2, "liq_pct": max(0.0, 1 / lev - 0.005)}, warns
 
 
+def post_channel(setups):
+    """Auto-post fresh trade alerts to the public channel (his rule, 2026-10-20). Falls back to a DM if the bot can't post."""
+    tok, ch = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("CHANNEL_ID", "@swanixcrypto")
+    if not tok or not setups:
+        return
+    import urllib.parse
+    for s_ in setups:
+        body = s_.strip().replace("🚨 TRADE SETUP\n", "")
+        text = ("🚨 SWANIX TRADE ALERT 🐸\n\n" + body +
+                "\n\n🔮 Swanix Oracle read. Not financial advice, DYOR. "
+                "High leverage can wipe your margin, always use the stop loss.\nStay Orange 🟠 @swanixcrypto")
+        try:
+            data = urllib.parse.urlencode({"chat_id": ch, "text": text[:4000], "disable_web_page_preview": "true"}).encode()
+            urllib.request.urlopen(f"https://api.telegram.org/bot{tok}/sendMessage", data, timeout=30).read()
+            print("posted to", ch)
+        except Exception as e:
+            err = getattr(e, "read", lambda: b"")().decode()[:200]
+            print("channel post failed:", e, err)
+            try:
+                from notify import telegram
+                telegram(f"⚠️ Couldn't post the trade alert to {ch}: {err or e}\nMake the bot an admin of the channel with 'Post messages' so alerts go out automatically.")
+            except Exception:
+                pass
+            return
+
+
 def fmt(p):
     return f"{p:,.2f}" if p >= 1 else f"{p:.6f}"
 
@@ -238,6 +264,8 @@ def main():
     if SCAN:
         msg[0] = msg[0].replace("Swanix Price Oracle", "Swanix Trade Alert")
     (ROOT / "latest.json").write_text(json.dumps({"at": now, "pairs": report}, indent=1))
+    if SCAN and os.getenv("CHANNEL_POST", "1") == "1":
+        post_channel(msg[2:-1] if len(msg) > 3 else [])
     try:
         from notify import telegram
         telegram(text)
