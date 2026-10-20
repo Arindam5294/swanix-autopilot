@@ -162,8 +162,7 @@ def post_channel(setups):
     for s_ in setups:
         body = s_.strip().replace("🚨 TRADE SETUP\n", "")
         text = ("🚨 SWANIX TRADE ALERT 🐸\n\n" + body +
-                "\n\n🔮 Swanix Oracle read. DYOR. High leverage can wipe your margin, always use the stop loss."
-                "\nStay Orange 🟠 @swanixcrypto\n\n" + WATERMARK)
+                "\n\n" + WATERMARK)
         try:
             data = urllib.parse.urlencode({"chat_id": ch, "text": text[:4000], "disable_web_page_preview": "true"}).encode()
             urllib.request.urlopen(f"https://api.telegram.org/bot{tok}/sendMessage", data, timeout=30).read()
@@ -200,8 +199,7 @@ def main():
     pred = KronosPredictor(mdl, tok, device="cpu", max_context=512)
     now = datetime.now(IST).strftime("%d %b %I:%M %p")
     msg = [f"🐸🔮 Swanix Price Oracle (Kronos-small) · {now} IST",
-           f"{PATHS} sampled futures each, next {PRED} candles. Signals only, no trades placed. Not financial advice.",
-           "Kronos reads only past candles: news, listings, hacks and liquidations can break any forecast.\n"]
+           f"{PATHS} sampled futures each, next {PRED} candles.\n"]
     report = []
     for pr in pairs:
         sym, tf = pr.strip().upper().split(":") if ":" in pr else (pr.strip().upper(), "1h")
@@ -255,18 +253,28 @@ def main():
             print(line, "\n")
         except Exception as e:
             print(sym, "failed:", e)
-            msg.append(f"⚠️ {sym} {tf}: skipped ({str(e)[:80]})\n")
+            if not SCAN:
+                msg.append(f"⚠️ {sym} {tf}: skipped ({str(e)[:80]})\n")
     SENT_F.write_text(json.dumps({k: v for k, v in SENT.items() if time.time() - v < 86400}))
-    if SCAN and len(msg) <= 3:
+    if SCAN and len(msg) <= 2:
         print("scan: no strong setup right now, staying quiet")
         return
-    msg.append(f"Paper trade it first. ({time.time()-t0:.0f}s)\n\n{WATERMARK}")
+    msg.append(WATERMARK)
     text = "\n".join(msg)
     if SCAN:
         msg[0] = msg[0].replace("Swanix Price Oracle", "Swanix Trade Alert")
     (ROOT / "latest.json").write_text(json.dumps({"at": now, "pairs": report}, indent=1))
-    if SCAN and os.getenv("CHANNEL_POST", "1") == "1":
-        post_channel(msg[2:-1] if len(msg) > 3 else [])
+    if SCAN:
+        # Alerts go out through @swanixalertsbot: it reads forecast/alerts.json and broadcasts to every subscriber.
+        f = ROOT / "alerts.json"
+        old = json.loads(f.read_text()) if f.exists() else []
+        for s_ in msg[2:-1]:
+            body = s_.strip().replace("🚨 TRADE SETUP\n", "")
+            old.append({"id": f"{int(time.time())}-{abs(hash(body)) % 10**8}", "ts": int(time.time()),
+                        "text": "🚨 SWANIX TRADE ALERT 🐸\n\n" + body + "\n\n" + WATERMARK})
+        f.write_text(json.dumps([a for a in old if time.time() - a["ts"] < 3 * 86400], indent=1, ensure_ascii=False))
+        print(text)
+        return
     try:
         from notify import telegram
         telegram(text)
