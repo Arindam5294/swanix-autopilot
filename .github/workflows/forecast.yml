@@ -107,6 +107,7 @@ jobs:
               (F / "latest.json").write_text(json.dumps({"at": at, "pairs": list(pairs.values())}, indent=1))
           print(len(parts), "parts,", len(alerts), "alerts kept")
           PY
+          python3 forecast/learn.py || true
           git config user.name "swanix-bot 🐸"; git config user.email "bot@swanix.local"
-          for f in forecast/sent.json forecast/latest.json forecast/alerts.json; do [ -f "$f" ] && git add "$f"; done
+          for f in forecast/sent.json forecast/latest.json forecast/alerts.json forecast/learnings.json; do [ -f "$f" ] && git add "$f"; done
           git diff --cached --quiet || (git commit -qm "🐸 oracle state" && git pull -q --rebase && git push -q) || true
