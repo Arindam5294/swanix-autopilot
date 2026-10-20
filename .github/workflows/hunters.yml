@@ -32,4 +32,4 @@ jobs:
           if [ "$MODE" = "both" ]; then python hunters/hunt.py bounty deals; else python hunters/hunt.py "$MODE"; fi
       - name: Remember what was already sent
         if: always()
-        run: python common/gitsave.py "hunters: seen" --mirror hunters/seen.json
+        run: python common/gitsave.py "hunters seen" --mirror hunters/seen.json
