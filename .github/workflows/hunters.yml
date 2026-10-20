@@ -1,11 +1,11 @@
-name: Hunters (Bounty Hunter + Deal Desk, never applies)
+name: Hunters (bounties, ambassador deals, govt agri jobs; never applies)
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "bounty, deals, or both"
+        description: "all, bounty, deals, or gov"
         required: false
-        default: "both"
+        default: "all"
 permissions:
   contents: write
 concurrency: { group: hunters, cancel-in-progress: false }
@@ -27,9 +27,9 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - name: Hunt
-        env: { MODE: "${{ github.event.inputs.mode || 'both' }}" }
+        env: { MODE: "${{ github.event.inputs.mode || 'all' }}" }
         run: |
-          if [ "$MODE" = "both" ]; then python hunters/hunt.py bounty deals; else python hunters/hunt.py "$MODE"; fi
+          if [ "$MODE" = "all" ] || [ "$MODE" = "both" ]; then python hunters/hunt.py bounty deals gov; else python hunters/hunt.py "$MODE"; fi
       - name: Remember what was already sent
         if: always()
         run: python common/gitsave.py "hunters seen" --mirror hunters/seen.json
