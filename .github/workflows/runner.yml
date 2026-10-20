@@ -14,7 +14,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - name: Tools
-        run: pip install -q playwright requests beautifulsoup4 pandas numpy matplotlib >/dev/null 2>&1
+        run: pip install -q playwright requests beautifulsoup4 pandas numpy matplotlib paramiko >/dev/null 2>&1
       - name: Run job (output goes only to Brain, never to this log)
         env:
           BRAIN: https://swanix-brain.swanixjobs.workers.dev
@@ -77,13 +77,33 @@ jobs:
               b.close()
           '''
           res = {"ok": True}
+          ENV = {k: v for k, v in (spec.get("env") or {}).items() if v}
+          SECRETS = list(ENV.values())
+          def red(t):
+              for v in SECRETS: t = t.replace(v, "***")
+              return t
+          def sh(c, cwd=None):
+              q = subprocess.run(c, shell=True, capture_output=True, text=True, cwd=cwd, timeout=300)
+              return q.returncode, red(q.stdout + q.stderr)
+          cwd, repo = "/tmp/out", spec.get("repo") or ""
           try:
-              json.dump(spec, open("/tmp/spec.json", "w"))
+              if repo and spec.get("kind") == "python":
+                  tk = ENV.get("GH_TOKEN", "")
+                  rc, out = sh(f"git clone -q https://x-access-token:{tk}@github.com/{repo}.git /tmp/repo")
+                  if rc: raise RuntimeError("clone failed: " + out[-800:])
+                  sh('git config user.name "Swanix Brain" && git config user.email "brain@swanix.dev"', "/tmp/repo"); cwd = "/tmp/repo"
+              json.dump({k: v for k, v in spec.items() if k != "env"}, open("/tmp/spec.json", "w"))
               open("/tmp/job.py", "w").write(BROWSE if spec.get("kind") == "browse" else spec.get("code", ""))
-              p = subprocess.run(["python", "/tmp/job.py"], capture_output=True, text=True, timeout=600)
-              res.update(stdout=p.stdout[-30000:], stderr=p.stderr[-6000:], code=p.returncode)
+              p = subprocess.run(["python", "/tmp/job.py"], capture_output=True, text=True, timeout=1500, cwd=cwd,
+                                 env={**os.environ, **(ENV if spec.get("kind") == "python" else {})})
+              res.update(stdout=red(p.stdout)[-30000:], stderr=red(p.stderr)[-6000:], code=p.returncode)
+              if cwd == "/tmp/repo":
+                  sh("git add -A", cwd)
+                  rc, out = sh('git commit -q -m "Brain: update" && git push -q origin HEAD', cwd)
+                  _, sha = sh("git rev-parse --short HEAD", cwd)
+                  res["commit"] = (f"pushed {sha.strip()} to github.com/{repo}" if rc == 0 else ("no changes" if "nothing to commit" in out else "push failed: " + out[-500:]))
           except Exception:
-              res.update(ok=False, stderr=traceback.format_exc()[-4000:])
+              res.update(ok=False, stderr=red(traceback.format_exc())[-4000:])
           res["files"] = [{"name": os.path.basename(f), "b64": base64.b64encode(open(f, "rb").read()).decode()}
                           for f in sorted(glob.glob("/tmp/out/*"))[:6] if os.path.isfile(f) and os.path.getsize(f) < 3_000_000]
           if spec.get("kind") == "browse" and os.path.exists("/tmp/state.json"): res["state"] = json.load(open("/tmp/state.json"))
