@@ -1,0 +1,75 @@
+name: Brain runner (code + real browser)
+on:
+  workflow_dispatch:
+    inputs:
+      job: { description: "job id", required: true }
+      tok: { description: "one-time token", required: true }
+permissions: { contents: read }
+concurrency: { group: "brain-${{ inputs.job }}", cancel-in-progress: false }
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Tools
+        run: pip install -q playwright requests beautifulsoup4 pandas numpy matplotlib >/dev/null 2>&1
+      - name: Run job (output goes only to Brain, never to this log)
+        env:
+          BRAIN: https://swanix-brain.swanixjobs.workers.dev
+          JOB: ${{ inputs.job }}
+          TOK: ${{ inputs.tok }}
+        run: |
+          cat > /tmp/r.py <<'PY'
+          import json, os, base64, glob, subprocess, urllib.request, traceback
+          B, J, T = os.environ["BRAIN"], os.environ["JOB"], os.environ["TOK"]
+          def call(path, data=None):
+              rq = urllib.request.Request(f"{B}/job/{J}{path}?t={T}", data=json.dumps(data).encode() if data is not None else None,
+                                          headers={"content-type": "application/json", "user-agent": "brain-runner"}, method="POST" if data is not None else "GET")
+              with urllib.request.urlopen(rq, timeout=60) as r: return r.read().decode()
+          spec = json.loads(call(""))
+          os.makedirs("/tmp/out", exist_ok=True); os.chdir("/tmp/out")
+          res = {"ok": True}
+          BROWSE = r'''
+          import json, sys
+          from playwright.sync_api import sync_playwright
+          spec = json.load(open("/tmp/spec.json"))
+          with sync_playwright() as p:
+              try: b = p.chromium.launch(channel="chrome", headless=True)
+              except Exception: b = p.chromium.launch(headless=True)
+              pg = b.new_page(viewport={"width": 1280, "height": 900}, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36")
+              pg.goto(spec["url"], wait_until="domcontentloaded", timeout=45000); pg.wait_for_timeout(2500)
+              log = []
+              for line in (spec.get("actions") or "").splitlines():
+                  if ":" not in line: continue
+                  op, arg = [x.strip() for x in line.split(":", 1)]
+                  try:
+                      if op == "click": pg.click(arg, timeout=10000)
+                      elif op == "fill": sel, val = [x.strip() for x in arg.split("|", 1)]; pg.fill(sel, val, timeout=10000)
+                      elif op == "press": pg.keyboard.press(arg)
+                      elif op == "wait": pg.wait_for_timeout(min(int(arg), 15000))
+                      elif op == "goto": pg.goto(arg, wait_until="domcontentloaded", timeout=45000)
+                      elif op == "scroll": pg.mouse.wheel(0, int(arg or 2000))
+                      pg.wait_for_timeout(1200); log.append("ok " + line)
+                  except Exception as e: log.append(f"FAIL {line}: {str(e)[:150]}")
+              pg.screenshot(path="/tmp/out/page.png")
+              links = pg.eval_on_selector_all("a[href]", "es=>es.slice(0,80).map(e=>(e.innerText||'').trim().slice(0,60)+' -> '+e.href)")
+              print(json.dumps({"url": pg.url, "title": pg.title(), "actions": log, "text": pg.inner_text("body")[:20000], "links": links}))
+              b.close()
+          '''
+          try:
+              json.dump(spec, open("/tmp/spec.json", "w"))
+              code = BROWSE if spec.get("kind") == "browse" else spec.get("code", "")
+              open("/tmp/job.py", "w").write(code if spec.get("kind") == "browse" else code)
+              p = subprocess.run(["python", "/tmp/job.py"], capture_output=True, text=True, timeout=600)
+              res.update(stdout=p.stdout[-30000:], stderr=p.stderr[-6000:], code=p.returncode)
+          except Exception:
+              res.update(ok=False, stderr=traceback.format_exc()[-4000:])
+          files = []
+          for f in sorted(glob.glob("/tmp/out/*"))[:6]:
+              if os.path.getsize(f) < 3_000_000: files.append({"name": os.path.basename(f), "b64": base64.b64encode(open(f, "rb").read()).decode()})
+          res["files"] = files
+          call("/done", res); print("job finished")
+          PY
+          python /tmp/r.py
