@@ -178,6 +178,24 @@ def post_channel(setups):
             return
 
 
+LEARN = (lambda p: json.loads(p.read_text()) if p.exists() else {})(ROOT / "learnings.json").get("coins", {})
+
+
+def learned(sym, score, warns):
+    """Feed the real track record back in: past alerts on this coin that hit TP1 vs the stop."""
+    c = LEARN.get(sym)
+    n = (c["win"] + c["loss"]) if c else 0
+    if n < 3:
+        return score, warns
+    wr = c["win"] / n
+    score = int(max(0, min(100, score + (wr - 0.5) * 30)))
+    if n >= 4 and wr < 0.35:
+        warns = warns + [f"Track record: only {c['win']}/{n} past {sym} alerts hit TP1, skip this coin for now"]
+    else:
+        warns = warns + [f"Track record: {c['win']}/{n} past {sym} alerts hit TP1"]
+    return score, warns
+
+
 def live_price(sym):
     """Price right now (the model reads closed candles, and sampling takes minutes, so the candle close goes stale)."""
     try:
@@ -243,6 +261,8 @@ def main():
             bt = backtest(pred, df, PRED) if BT_WINDOWS else None
             med = last * (1 + r["median"])
             score, label, vol, warns = confidence(r, bt, hist)
+            score, warns = learned(sym, score, warns)
+            label = "HIGH" if score >= 65 else "MEDIUM" if score >= 40 else "LOW"
             now_px = live_price(sym) or last
             drift = now_px / last - 1
             if r["regime"] == "CHOPPY" or label == "LOW":
