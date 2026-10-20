@@ -103,6 +103,7 @@ def confidence(r, bt, hist):
     return score, label, vol, warns
 
 
+WATERMARK = "Not Financial Advice | © Swanix Crypto Inc.™"
 SCAN = os.getenv("SCAN") == "1"           # alert mode: only speak when a strong setup exists
 SCAN_MIN = int(os.getenv("SCAN_MIN", "65"))
 SENT_F = ROOT / "sent.json"
@@ -161,8 +162,8 @@ def post_channel(setups):
     for s_ in setups:
         body = s_.strip().replace("🚨 TRADE SETUP\n", "")
         text = ("🚨 SWANIX TRADE ALERT 🐸\n\n" + body +
-                "\n\n🔮 Swanix Oracle read. Not financial advice, DYOR. "
-                "High leverage can wipe your margin, always use the stop loss.\nStay Orange 🟠 @swanixcrypto")
+                "\n\n🔮 Swanix Oracle read. DYOR. High leverage can wipe your margin, always use the stop loss."
+                "\nStay Orange 🟠 @swanixcrypto\n\n" + WATERMARK)
         try:
             data = urllib.parse.urlencode({"chat_id": ch, "text": text[:4000], "disable_web_page_preview": "true"}).encode()
             urllib.request.urlopen(f"https://api.telegram.org/bot{tok}/sendMessage", data, timeout=30).read()
@@ -259,7 +260,7 @@ def main():
     if SCAN and len(msg) <= 3:
         print("scan: no strong setup right now, staying quiet")
         return
-    msg.append(f"Paper trade it first. Built by Swanix 🐸 · {time.time()-t0:.0f}s on free GitHub CPU")
+    msg.append(f"Paper trade it first. ({time.time()-t0:.0f}s)\n\n{WATERMARK}")
     text = "\n".join(msg)
     if SCAN:
         msg[0] = msg[0].replace("Swanix Price Oracle", "Swanix Trade Alert")
