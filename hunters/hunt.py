@@ -9,6 +9,8 @@
 Only NEW items reach Telegram (hunters/seen.json). If every AI is down the list still goes out without drafts.
 """
 import html, json, os, re, sys, time, pathlib, urllib.request, urllib.parse
+import xml.etree.ElementTree as ET
+from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone, timedelta
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -28,10 +30,109 @@ features for his builds; if none fits, say which skill fits instead.
 Rules: sign as Swanix only, never real name/face, never mention CropCrack or agriculture. 5-6 h/day."""
 
 
-def get(url, timeout=40):
-    req = urllib.request.Request(url, headers=UA)
+def raw(url, timeout=40):
+    req = urllib.request.Request(url, headers={**UA, "Accept": "*/*", "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/120"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read())
+        return r.read().decode("utf-8", "ignore")
+
+
+def get(url, timeout=40):
+    return json.loads(raw(url, timeout))
+
+
+def rss(url, src, days=10, want=None):
+    out = []
+    try:
+        for it in ET.fromstring(raw(url)).findall(".//item"):
+            t, link = (it.findtext("title") or "").strip(), (it.findtext("link") or "").strip()
+            try:
+                d = parsedate_to_datetime(it.findtext("pubDate"))
+            except Exception:
+                d = None
+            if d and (datetime.now(timezone.utc) - d).days > days:
+                continue
+            if want and not want.search(t):
+                continue
+            out.append({"key": "rss:" + re.sub(r"\W+", "", t.lower())[:90], "src": src, "title": html.unescape(t)[:160],
+                        "reward": "", "usd": 0, "deadline": None,
+                        "dl_text": "posted " + d.astimezone(IST).strftime("%d %b") if d else "", "cat": "", "by": "",
+                        "url": link, "subs": None, "posted": d})
+    except Exception as e:
+        print(src, "failed:", e)
+    return out
+
+
+def gnews(q, src="Google News", days=10, want=None):
+    return rss("https://news.google.com/rss/search?q=" + urllib.parse.quote(q) + "&hl=en-IN&gl=IN&ceid=IN:en", src, days, want)
+
+
+def web3career(path, days=30):
+    out = []
+    try:
+        s = raw(f"https://web3.career/{path}")
+        for m in re.finditer(r"<tr data-jobid=(\d+)(.*?)</tr>", s, re.S):
+            jid, body = m.group(1), m.group(2)
+            t = re.search(r"<h2[^>]*>\s*(.*?)\s*</h2>", body, re.S)
+            c = re.search(r"<h3[^>]*>\s*(.*?)\s*</h3>", body, re.S)
+            href = re.search(r'href="(/[^"]+/' + jid + ')"', body)
+            tm = re.search(r'datetime="([^"]+)"', body)
+            sal = re.search(r'text-salary[^>]*>\s*([^<]*?)\s*<', body)
+            if not (t and href):
+                continue
+            d = when((tm.group(1).replace(" ", "T", 1)) if tm else None)
+            if d and (datetime.now(timezone.utc) - d).days > days:
+                continue
+            if any(o["key"] == f"w3:{jid}" for o in out):
+                continue
+            out.append({"key": f"w3:{jid}", "src": "web3.career", "title": f"{html.unescape(t.group(1))} at {html.unescape(c.group(1)) if c else '?'}",
+                        "reward": (sal.group(1).strip() if sal and sal.group(1).strip() else "pay not listed"), "usd": 0,
+                        "deadline": None, "dl_text": "posted " + d.astimezone(IST).strftime("%d %b") if d else "",
+                        "cat": "ambassador", "by": c.group(1) if c else "", "url": "https://web3.career" + href.group(1), "subs": None})
+    except Exception as e:
+        print("web3.career", path, "failed:", e)
+    return out
+
+
+GOV_WANT = re.compile(r"agri|icar|kvk|krishi|nabard|\bfci\b|\bcwc\b|warehous|iffco|nafed|seed|fertili|farm|horticult|soil|"
+                      r"irrigation|water resources|watershed|food|dairy|fisher|rural|young professional|\bsms\b|drone", re.I)
+GOV_SKIP = re.compile(r"result|answer key|admit card|cut ?off|syllabus|exam date|exam centre|detained|scam|arrest", re.I)
+
+
+def government():
+    out = []
+    for q in ['"agricultural engineering" (recruitment OR vacancy OR notification OR internship) when:7d',
+              '(ICAR OR KVK OR "agricultural university") (recruitment OR "young professional" OR walkin OR internship) when:7d',
+              '(NABARD OR FCI OR CWC OR NSC OR IFFCO OR NAFED OR "agriculture officer" OR "agriculture development officer") recruitment when:7d',
+              'agriculture internship (government OR ministry OR ICAR OR MANAGE) 2026 when:14d']:
+        out += gnews(q, "Google News", 14)
+    out += rss("https://www.freejobalert.com/feed/", "FreeJobAlert", 7, GOV_WANT)
+    keep, seen = [], set()
+    for i in out:
+        if GOV_SKIP.search(i["title"]):
+            continue
+        k = re.sub(r"\s+-\s+[^-]+$", "", i["title"]).lower()[:60]   # same notice from several papers
+        if k in seen:
+            continue
+        seen.add(k); keep.append(i)
+    return keep
+
+
+def gov_check(items):
+    """AI marks which notices a B.Tech Agricultural Engineering fresher can apply to. Keyword fallback if AI is down."""
+    try:
+        from ai import ask
+        lst = [{"key": i["key"], "title": i["title"]} for i in items]
+        txt = ask("A fresh B.Tech Agricultural Engineering graduate in India (age 22, General category; SEBC in Chhattisgarh) "
+                  "wants government jobs and internships. For each notice title below, say if he is likely eligible "
+                  "(posts open to B.Tech Agri Engg / Agri / any graduate / engineering, internships, Young Professional, "
+                  "JRF/SRF/project roles in agri engineering). Do not guess dates you can't see.\n"
+                  + json.dumps(lst, ensure_ascii=False) +
+                  '\nReturn ONLY JSON list: [{"key":"...","ok":true,"why":"post + who can apply, under 18 words"}]', min_len=20)
+        res = {r["key"]: r for r in json.loads(re.search(r"\[.*\]", txt, re.S).group(0)) if isinstance(r, dict)}
+        return [dict(i, why=res[i["key"]].get("why", "")) for i in items if res.get(i["key"], {}).get("ok")]
+    except Exception as e:
+        print("gov AI check skipped:", e)
+        return [i for i in items if re.search(r"agricultur\w* engineer|young professional|icar|kvk|agri", i["title"], re.I)]
 
 
 def when(s):
@@ -163,9 +264,16 @@ def run(mode):
         items = [i for i in superteam(["Development", "Design", "Other", ""]) if i["cat"] != "Content"]
         items += devpost() + algora()
         title, limit = "🎯 Bounty Hunter", 6
-    else:
-        items = superteam(["Content"]) + remoteok()
-        title, limit = "🤝 Deal Desk", 6
+    elif mode == "deals":
+        role = re.compile(r"ambassador|community|moderat|content|creator|kol|social|growth|marketing|advocate|evangelist|devrel", re.I)
+        items = web3career("ambassador-jobs", 75) + web3career("community-manager-jobs", 30)
+        items += rss("https://cryptocurrencyjobs.co/index.xml", "CryptocurrencyJobs", 21, role)
+        items += rss("https://cryptojobslist.com/rss", "CryptoJobsList", 21, role)
+        items += superteam(["Content"]) + remoteok()
+        title, limit = "🤝 Deal Desk (ambassador + creator)", 8
+    elif mode == "gov":
+        items = government()
+        title, limit = "🏛 Govt jobs + internships (B.Tech Agri Engg)", 10
     print(f"{mode}: {len(items)} live items fetched")
     if not items:
         raise SystemExit(f"{mode}: every source failed")   # red run = visible failure, never silent
@@ -182,23 +290,30 @@ def run(mode):
     for i in fresh:
         if per.get(i["src"], 0) < 5:
             per[i["src"]] = per.get(i["src"], 0) + 1; short.append(i)
-    notes = ai_drafts(mode, short) if short else {}
+    if mode == "gov":
+        short = gov_check(fresh[:40])
+        notes = {}
+    else:
+        notes = ai_drafts(mode, short) if short else {}
     if notes:
         short.sort(key=lambda i: (-(notes.get(i["key"], {}).get("score") or 0), -i["usd"]))
     pick, per = [], {}
     for i in short:
-        if per.get(i["src"], 0) < 3 and len(pick) < limit:
+        if (mode == "gov" or per.get(i["src"], 0) < 3) and len(pick) < limit:
             per[i["src"]] = per.get(i["src"], 0) + 1; pick.append(i)
     now = datetime.now(IST).strftime("%d %b %I:%M %p")
     if not pick:
         print("nothing new"); return
-    lines = [f"{title} · {now} IST · {len(pick)} new (from {len(items)} live)\nNothing was applied or sent. You decide.\n"]
+    lines = [f"{title} · {now} IST · {len(pick)} new (from {len(items)} live)\n" + ("Listed only, never applied. Check the official notice for last date and eligibility.\n" if mode == "gov" else "Nothing was applied or sent. You decide.\n")]
     for n, i in enumerate(pick, 1):
         dl = fmt_deadline(i["deadline"]) if i["deadline"] else i.get("dl_text", "")
         reg = re.match(r"Superteam (.+)", i.get("by") or "")
         if reg and reg.group(1).strip().lower() not in ("india", "earn", ""):
             i["title"] += f"  ⚠️ check region ({reg.group(1).strip()})"
-        lines.append(f"{n}. {i['title']}\n💰 {i['reward']} · ⏳ {dl} · {i['src']}" + (f" · {i['subs']} entries so far" if i.get("subs") is not None and i["src"] == "Superteam Earn" else ""))
+        if mode == "gov":
+            lines.append(f"{n}. {i['title']}\n{('✅ ' + i['why']) if i.get('why') else ''}\n📅 {dl} · {i['src']}\n{i['url']}\n")
+            continue
+        lines.append(f"{n}. {i['title']}\n💰 {i['reward'] or 'pay not listed'} · ⏳ {dl} · {i['src']}" + (f" · {i['subs']} entries so far" if i.get("subs") is not None and i["src"] == "Superteam Earn" else ""))
         a = notes.get(i["key"])
         if a:
             lines.append(f"Why you: {a.get('fit','')}")
@@ -214,7 +329,17 @@ def run(mode):
     SEEN.write_text(json.dumps({k: v for k, v in seen.items() if v > cutoff}, indent=0))
 
 
-if __name__ == "__main__":
-    modes = sys.argv[1:] or ["bounty", "deals"]
-    for m in modes:
+def run_safe(m):
+    try:
         run(m)
+        return True
+    except BaseException as e:
+        print(m, "FAILED:", e)
+        return False
+
+
+if __name__ == "__main__":
+    modes = sys.argv[1:] or ["bounty", "deals", "gov"]
+    ok = [run_safe(m) for m in modes]       # one broken source never stops the others
+    if not all(ok):
+        sys.exit(1)
