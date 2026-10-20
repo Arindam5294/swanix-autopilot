@@ -1,0 +1,35 @@
+name: Hunters (Bounty Hunter + Deal Desk, never applies)
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "bounty, deals, or both"
+        required: false
+        default: "both"
+permissions:
+  contents: write
+concurrency: { group: hunters, cancel-in-progress: false }
+jobs:
+  hunt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: gemini-2.5-flash
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GITHUB_TOKEN: ${{ github.token }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Hunt
+        env: { MODE: "${{ github.event.inputs.mode || 'both' }}" }
+        run: |
+          if [ "$MODE" = "both" ]; then python hunters/hunt.py bounty deals; else python hunters/hunt.py "$MODE"; fi
+      - name: Remember what was already sent
+        if: always()
+        run: python common/gitsave.py "hunters: seen" --mirror hunters/seen.json
