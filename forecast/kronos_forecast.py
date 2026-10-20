@@ -105,7 +105,7 @@ def confidence(r, bt, hist):
 
 WATERMARK = "Not Financial Advice | © Swanix Crypto Inc.™"
 SCAN = os.getenv("SCAN") == "1"           # alert mode: only speak when a strong setup exists
-SCAN_MIN = int(os.getenv("SCAN_MIN", "65"))
+SCAN_MIN = int(os.getenv("SCAN_MIN", "72"))
 SENT_F = ROOT / "sent.json"
 SENT = json.loads(SENT_F.read_text()) if SENT_F.exists() else {}
 MARGIN_MIN, MARGIN_MAX = float(os.getenv("MARGIN_MIN", "10")), float(os.getenv("MARGIN_MAX", "40"))
@@ -297,6 +297,9 @@ def main():
                 line += f"\n• Invalid if a 1h candle closes {'below' if plan['side'] == 'LONG' else 'above'} {fmt(plan['sl'])}"
             if warns:
                 line += "\n⚠️ " + "\n⚠️ ".join(warns)
+            bt_ok = bool(bt and bt["trades"] >= 4 and bt["hits"] / bt["trades"] >= 0.66 and bt["pnl"] > 0)   # proven on enough history
+            if SCAN and not bt_ok:
+                print(sym, "no setup: backtest too thin or weak", bt); continue
             if SCAN and not (plan and score >= SCAN_MIN and not any("skip" in w.lower() or "lost money" in w for w in warns)):
                 print(sym, "no setup:", call, score); continue
             if SCAN:
