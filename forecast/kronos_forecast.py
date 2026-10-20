@@ -293,7 +293,8 @@ def main():
                          f"\n• Size: ${plan['margin']:.0f} margin at {plan['lev']}x max (liq ~{plan['liq_pct']*100:.1f}% away, past the stop)"
                          f"\n• If stopped: -${plan['loss']:.2f} · TP1: +${plan['win1']:.2f} · TP2: +${plan['win2']:.2f} (fees in)"
                          f"\n• Take half at TP1, move stop to entry")
-            line += f"\n• Invalid if it closes below {fmt(last*(1+r['p10']))}" if call.startswith("LONG") else (f"\n• Invalid if it closes above {fmt(last*(1+r['p90']))}" if call.startswith("SHORT") else "")
+            if plan:   # invalidation = the stop (the p10/p90 of the end price can sit on the wrong side of entry)
+                line += f"\n• Invalid if a 1h candle closes {'below' if plan['side'] == 'LONG' else 'above'} {fmt(plan['sl'])}"
             if warns:
                 line += "\n⚠️ " + "\n⚠️ ".join(warns)
             if SCAN and not (plan and score >= SCAN_MIN and not any("skip" in w.lower() or "lost money" in w for w in warns)):
