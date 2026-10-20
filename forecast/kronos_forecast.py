@@ -150,7 +150,7 @@ def risk_plan(call, last, c, hist, score):
         warns.append("Stop would eat almost the whole margin; liquidation risk is high")
     return {"side": "LONG" if side == 1 else "SHORT", "sl": last * (1 + sl), "tp1": last * (1 + tp1), "tp2": last * (1 + tp2),
             "sl_pct": sl_d, "tp1_pct": tp1_d, "tp2_pct": tp2_d, "rr": rr, "lev": lev, "margin": margin,
-            "loss": loss, "win1": win1, "win2": win2, "liq_pct": max(0.0, 1 / lev - 0.005)}, warns
+            "entry": last, "loss": loss, "win1": win1, "win2": win2, "liq_pct": max(0.0, 1 / lev - 0.005)}, warns
 
 
 def post_channel(setups):
@@ -178,6 +178,34 @@ def post_channel(setups):
             return
 
 
+def live_price(sym):
+    """Price right now (the model reads closed candles, and sampling takes minutes, so the candle close goes stale)."""
+    try:
+        with urllib.request.urlopen(f"https://data-api.binance.vision/api/v3/ticker/price?symbol={sym}", timeout=10) as r:
+            return float(json.loads(r.read())["price"])
+    except Exception:
+        return None
+
+
+def reanchor(plan, now_px):
+    """Keep the forecast's absolute stop and targets, but quote entry, % and $ from the live price.
+    Returns (plan or None, warning)."""
+    side = 1 if plan["side"] == "LONG" else -1
+    e0 = plan["entry"]
+    if side * (now_px - plan["sl"]) <= 0:
+        return None, f"Price already hit the stop zone ({fmt(now_px)}), setup dead"
+    done = side * (now_px - e0) / (side * (plan["tp1"] - e0))
+    if done >= 0.5:
+        return None, f"Price already moved {done*100:.0f}% of the way to TP1 ({fmt(now_px)}), don't chase"
+    sl_d, tp1_d, tp2_d = abs(plan["sl"] / now_px - 1), side * (plan["tp1"] / now_px - 1), side * (plan["tp2"] / now_px - 1)
+    if tp1_d <= 2 * FEE:
+        return None, "Take-profit now inside fees from the live price, skip"
+    n = plan["margin"] * plan["lev"]; fees = n * 2 * FEE
+    plan.update(entry=now_px, sl_pct=sl_d, tp1_pct=tp1_d, tp2_pct=tp2_d, rr=tp1_d / sl_d,
+                loss=n * sl_d + fees, win1=n * tp1_d - fees, win2=n * tp2_d - fees)
+    return plan, ("Reward to risk from the live price is only %.1f:1" % plan["rr"]) if plan["rr"] < 1.2 else None
+
+
 def fmt(p):
     return f"{p:,.2f}" if p >= 1 else f"{p:.6f}"
 
@@ -201,6 +229,8 @@ def main():
     msg = [f"🐸🔮 Swanix Price Oracle (Kronos-small) · {now} IST",
            f"{PATHS} sampled futures each, next {PRED} candles.\n"]
     report = []
+    global PLANS
+    PLANS = []
     for pr in pairs:
         sym, tf = pr.strip().upper().split(":") if ":" in pr else (pr.strip().upper(), "1h")
         tf = tf.lower()
@@ -213,12 +243,14 @@ def main():
             bt = backtest(pred, df, PRED) if BT_WINDOWS else None
             med = last * (1 + r["median"])
             score, label, vol, warns = confidence(r, bt, hist)
+            now_px = live_price(sym) or last
+            drift = now_px / last - 1
             if r["regime"] == "CHOPPY" or label == "LOW":
                 call = "NO TRADE (wait)"
             else:
                 call = ("LONG bias" if r["up_share"] >= 0.7 else "SHORT bias")
             icon = "🟢" if r["regime"] == "TRENDING UP" else "🔴" if r["regime"] == "TRENDING DOWN" else "🟡"
-            line = (f"{icon} {sym} {tf} · now {fmt(last)}\n"
+            line = (f"{icon} {sym} {tf} · live {fmt(now_px)} (model read the {fmt(last)} candle close, {drift*100:+.2f}% since)\n"
                     f"• Call: {call} · Confidence {score}/100 ({label})\n"
                     f"• Regime: {r['regime']} ({r['agree']*100:.0f}% of paths agree, {r['up_share']*100:.0f}% end higher)\n"
                     f"• Median in {PRED} candles: {fmt(med)} ({r['median']*100:+.2f}%)\n"
@@ -229,7 +261,13 @@ def main():
             plan, pw = risk_plan(call, last, c, hist, score)
             warns += pw
             if plan:
-                line += (f"\n🎯 Plan ({plan['side']}): entry ~{fmt(last)}"
+                plan, rw = reanchor(plan, now_px)
+                if rw:
+                    warns.append(rw)
+                if plan is None and SCAN:
+                    print(sym, "no setup:", rw); continue
+            if plan:
+                line += (f"\n🎯 Plan ({plan['side']}): entry ~{fmt(plan['entry'])} (live price)"
                          f"\n• Stop loss {fmt(plan['sl'])} ({plan['sl_pct']*100:.2f}% away)"
                          f"\n• TP1 {fmt(plan['tp1'])} ({plan['tp1_pct']*100:+.2f}%), TP2 {fmt(plan['tp2'])} ({plan['tp2_pct']*100:+.2f}%) · R:R {plan['rr']:.1f}"
                          f"\n• Size: ${plan['margin']:.0f} margin at {plan['lev']}x max (liq ~{plan['liq_pct']*100:.1f}% away, past the stop)"
@@ -247,6 +285,8 @@ def main():
                 SENT[k] = time.time()
                 line = "🚨 TRADE SETUP\n" + line
             msg.append(line + "\n")
+            if SCAN:
+                PLANS.append({"sym": sym, "side": plan["side"], "entry": plan["entry"], "sl": plan["sl"], "tp1": plan["tp1"]})
             report.append({"pair": sym, "tf": tf, "last": last, **r, "backtest": bt, "confidence": score, "call": call, "warnings": warns, "plan": None,
                            "median_path": [float(v) for v in np.median(c, axis=0)],
                            "times": [str(t) for t in yt]})
@@ -268,9 +308,10 @@ def main():
         # Alerts go out through @swanixalertsbot: it reads forecast/alerts.json and broadcasts to every subscriber.
         f = ROOT / "alerts.json"
         old = json.loads(f.read_text()) if f.exists() else []
-        for s_ in msg[2:-1]:
+        for i, s_ in enumerate(msg[2:-1]):
             body = s_.strip().replace("🚨 TRADE SETUP\n", "")
             old.append({"id": f"{int(time.time())}-{abs(hash(body)) % 10**8}", "ts": int(time.time()),
+                        "plan": PLANS[i] if i < len(PLANS) else None,
                         "text": "🚨 SWANIX TRADE ALERT 🐸\n\n" + body + "\n\n" + WATERMARK})
         f.write_text(json.dumps([a for a in old if time.time() - a["ts"] < 3 * 86400], indent=1, ensure_ascii=False))
         print(text)
