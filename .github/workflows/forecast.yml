@@ -16,9 +16,28 @@ concurrency:
   group: "oracle-${{ github.event.inputs.scan }}"
   cancel-in-progress: false
 jobs:
-  oracle:
+  plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    outputs:
+      pairs: ${{ steps.p.outputs.pairs }}
+    steps:
+      - id: p
+        env:
+          PAIRS: ${{ github.event.inputs.pairs }}
+          SCAN: ${{ github.event.inputs.scan }}
+        run: |
+          if [ -z "$PAIRS" ]; then
+            if [ "$SCAN" = "1" ]; then PAIRS="BTC:1h,ETH:1h,SOL:1h,BNB:1h,XRP:1h,DOGE:1h,SUI:1h,LINK:1h"; else PAIRS="BTC:1h,ETH:1h,SOL:1h"; fi
+          fi
+          echo "pairs=$(python3 -c "import json,sys;print(json.dumps([p for p in sys.argv[1].replace(' ','').split(',') if p]))" "$PAIRS")" >> "$GITHUB_OUTPUT"
+  oracle:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        pair: ${{ fromJson(needs.plan.outputs.pairs) }}
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -38,19 +57,56 @@ jobs:
         run: |
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
           pip install -q numpy pandas einops==0.8.1 huggingface_hub safetensors tqdm
-      - name: Forecast
+      - name: Forecast ${{ matrix.pair }}
         env:
-          PAIRS: ${{ github.event.inputs.pairs }}
+          PAIRS: ${{ matrix.pair }}
           SCAN: ${{ github.event.inputs.scan }}
         run: |
-          if [ "$SCAN" = "1" ] && [ -z "$PAIRS" ]; then
-            export PAIRS="BTC:1h,ETH:1h,SOL:1h,BNB:1h,XRP:1h,DOGE:1h,SUI:1h,LINK:1h"
-          fi
           if [ "$SCAN" = "1" ]; then export PATHS=20 BT_WINDOWS=3; fi
           python forecast/kronos_forecast.py
-      - name: Remember sent alerts
+      - name: Keep this pair's result
         if: always()
         run: |
+          mkdir -p part; for f in sent latest alerts; do [ -f forecast/$f.json ] && cp forecast/$f.json part/$f.json; done; true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: part-${{ strategy.job-index }}
+          path: part/
+          if-no-files-found: ignore
+          retention-days: 1
+  merge:
+    needs: oracle
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: parts, pattern: "part-*" }
+      - name: Merge and remember sent alerts
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, time, datetime
+          F = pathlib.Path("forecast"); parts = sorted(pathlib.Path("parts").glob("part-*")) if pathlib.Path("parts").exists() else []
+          def load(p, d):
+              try: return json.loads(p.read_text())
+              except Exception: return d
+          sent = load(F / "sent.json", {}); alerts = {a["id"]: a for a in load(F / "alerts.json", [])}; pairs = {}
+          old = load(F / "latest.json", {"pairs": []})
+          for d in parts:
+              for k, v in load(d / "sent.json", {}).items(): sent[k] = max(v, sent.get(k, 0))
+              for a in load(d / "alerts.json", []): alerts.setdefault(a["id"], a)
+              lt = load(d / "latest.json", None)
+              if lt and lt.get("at") != old.get("at"):
+                  for p in lt.get("pairs", []): pairs[(p["pair"], p["tf"])] = p
+          now = time.time()
+          (F / "sent.json").write_text(json.dumps({k: v for k, v in sent.items() if now - v < 86400}))
+          (F / "alerts.json").write_text(json.dumps(sorted([a for a in alerts.values() if now - a["ts"] < 3 * 86400], key=lambda a: a["ts"]), indent=1, ensure_ascii=False))
+          if pairs:
+              at = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=5, minutes=30))).strftime("%d %b %I:%M %p")
+              (F / "latest.json").write_text(json.dumps({"at": at, "pairs": list(pairs.values())}, indent=1))
+          print(len(parts), "parts,", len(alerts), "alerts kept")
+          PY
           git config user.name "swanix-bot 🐸"; git config user.email "bot@swanix.local"
           for f in forecast/sent.json forecast/latest.json forecast/alerts.json; do [ -f "$f" ] && git add "$f"; done
           git diff --cached --quiet || (git commit -qm "🐸 oracle state" && git pull -q --rebase && git push -q) || true
