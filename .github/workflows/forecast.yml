@@ -62,7 +62,7 @@ jobs:
           PAIRS: ${{ matrix.pair }}
           SCAN: ${{ github.event.inputs.scan }}
         run: |
-          if [ "$SCAN" = "1" ]; then export PATHS=20 BT_WINDOWS=3; fi
+          if [ "$SCAN" = "1" ]; then export PATHS=30 BT_WINDOWS=6; fi
           python forecast/kronos_forecast.py
       - name: Keep this pair's result
         if: always()
