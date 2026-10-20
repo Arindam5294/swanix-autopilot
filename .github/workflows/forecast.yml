@@ -1,0 +1,55 @@
+name: Swanix Price Oracle (Kronos forecasts + trade alerts; signals only, never trades)
+on:
+  workflow_dispatch:
+    inputs:
+      pairs:
+        description: "e.g. BTC:1h,SOL:4h"
+        required: false
+        default: ""
+      scan:
+        description: "1 = alert mode (only speaks on strong setups)"
+        required: false
+        default: "0"
+permissions:
+  contents: write
+concurrency:
+  group: "oracle-${{ github.event.inputs.scan }}"
+  cancel-in-progress: false
+jobs:
+  oracle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      PYTHONUNBUFFERED: "1"
+      HF_HUB_DISABLE_PROGRESS_BARS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/huggingface
+          key: kronos-v1
+      - name: Install (CPU torch)
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q numpy pandas einops==0.8.1 huggingface_hub safetensors tqdm
+      - name: Forecast
+        env:
+          PAIRS: ${{ github.event.inputs.pairs }}
+          SCAN: ${{ github.event.inputs.scan }}
+        run: |
+          if [ "$SCAN" = "1" ] && [ -z "$PAIRS" ]; then
+            export PAIRS="BTC:1h,ETH:1h,SOL:1h,BNB:1h,XRP:1h,DOGE:1h,SUI:1h,LINK:1h"
+          fi
+          python forecast/kronos_forecast.py
+      - name: Remember sent alerts
+        if: always()
+        run: |
+          git config user.name "swanix-bot 🐸"; git config user.email "bot@swanix.local"
+          git add forecast/sent.json forecast/latest.json 2>/dev/null || true
+          git diff --cached --quiet || (git commit -qm "🐸 oracle state" && git pull -q --rebase && git push -q) || true
