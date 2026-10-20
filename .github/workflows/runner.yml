@@ -1,4 +1,4 @@
-name: Brain runner (code + real browser)
+name: Brain runner (code + real browser + background jobs)
 on:
   workflow_dispatch:
     inputs:
@@ -9,7 +9,7 @@ concurrency: { group: "brain-${{ inputs.job }}", cancel-in-progress: false }
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
     steps:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
@@ -22,23 +22,38 @@ jobs:
           TOK: ${{ inputs.tok }}
         run: |
           cat > /tmp/r.py <<'PY'
-          import json, os, base64, glob, subprocess, urllib.request, traceback
+          import json, os, base64, glob, subprocess, urllib.request, traceback, time
           B, J, T = os.environ["BRAIN"], os.environ["JOB"], os.environ["TOK"]
           def call(path, data=None):
               rq = urllib.request.Request(f"{B}/job/{J}{path}?t={T}", data=json.dumps(data).encode() if data is not None else None,
                                           headers={"content-type": "application/json", "user-agent": "brain-runner"}, method="POST" if data is not None else "GET")
-              with urllib.request.urlopen(rq, timeout=60) as r: return r.read().decode()
+              with urllib.request.urlopen(rq, timeout=280) as r: return r.read().decode()
           spec = json.loads(call(""))
+          if spec.get("kind") == "agent":          # background job: keep the Brain thinking, one step per call
+              t0, fails = time.time(), 0
+              while time.time() - t0 < 50 * 60 and fails < 8:
+                  try: st = json.loads(call("/step", {})); fails = 0
+                  except Exception: fails += 1; time.sleep(15); continue
+                  if st.get("done"): break
+              print("agent finished"); raise SystemExit(0)
           os.makedirs("/tmp/out", exist_ok=True); os.chdir("/tmp/out")
-          res = {"ok": True}
           BROWSE = r'''
-          import json, sys
+          import json, re
           from playwright.sync_api import sync_playwright
           spec = json.load(open("/tmp/spec.json"))
+          creds = spec.get("creds") or {}
+          def sub(t):
+              def rep(m):
+                  for d, c in creds.items():
+                      if m.group(2).replace("www.", "").endswith(d): return c[m.group(1)]
+                  return m.group(0)
+              return re.sub(r"\{\{(user|pass):([\w.-]+)\}\}", rep, t)
           with sync_playwright() as p:
-              try: b = p.chromium.launch(channel="chrome", headless=True)
+              try: b = p.chromium.launch(channel="chrome", headless=True, args=["--disable-blink-features=AutomationControlled"])
               except Exception: b = p.chromium.launch(headless=True)
-              pg = b.new_page(viewport={"width": 1280, "height": 900}, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36")
+              ctx = b.new_context(viewport={"width": 1280, "height": 900}, storage_state=spec.get("state") or None, locale="en-US",
+                  user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36")
+              pg = ctx.new_page()
               pg.goto(spec["url"], wait_until="domcontentloaded", timeout=45000); pg.wait_for_timeout(2500)
               log = []
               for line in (spec.get("actions") or "").splitlines():
@@ -46,30 +61,32 @@ jobs:
                   op, arg = [x.strip() for x in line.split(":", 1)]
                   try:
                       if op == "click": pg.click(arg, timeout=10000)
-                      elif op == "fill": sel, val = [x.strip() for x in arg.split("|", 1)]; pg.fill(sel, val, timeout=10000)
+                      elif op == "fill": sel, val = [x.strip() for x in arg.split("|", 1)]; pg.fill(sel, sub(val), timeout=10000)
+                      elif op == "type": pg.keyboard.type(sub(arg), delay=40)
                       elif op == "press": pg.keyboard.press(arg)
                       elif op == "wait": pg.wait_for_timeout(min(int(arg), 15000))
                       elif op == "goto": pg.goto(arg, wait_until="domcontentloaded", timeout=45000)
                       elif op == "scroll": pg.mouse.wheel(0, int(arg or 2000))
+                      elif op == "shot": pg.screenshot(path=f"/tmp/out/step{len(log)}.png")
                       pg.wait_for_timeout(1200); log.append("ok " + line)
                   except Exception as e: log.append(f"FAIL {line}: {str(e)[:150]}")
               pg.screenshot(path="/tmp/out/page.png")
               links = pg.eval_on_selector_all("a[href]", "es=>es.slice(0,80).map(e=>(e.innerText||'').trim().slice(0,60)+' -> '+e.href)")
+              json.dump(ctx.storage_state(), open("/tmp/state.json", "w"))
               print(json.dumps({"url": pg.url, "title": pg.title(), "actions": log, "text": pg.inner_text("body")[:20000], "links": links}))
               b.close()
           '''
+          res = {"ok": True}
           try:
               json.dump(spec, open("/tmp/spec.json", "w"))
-              code = BROWSE if spec.get("kind") == "browse" else spec.get("code", "")
-              open("/tmp/job.py", "w").write(code if spec.get("kind") == "browse" else code)
+              open("/tmp/job.py", "w").write(BROWSE if spec.get("kind") == "browse" else spec.get("code", ""))
               p = subprocess.run(["python", "/tmp/job.py"], capture_output=True, text=True, timeout=600)
               res.update(stdout=p.stdout[-30000:], stderr=p.stderr[-6000:], code=p.returncode)
           except Exception:
               res.update(ok=False, stderr=traceback.format_exc()[-4000:])
-          files = []
-          for f in sorted(glob.glob("/tmp/out/*"))[:6]:
-              if os.path.getsize(f) < 3_000_000: files.append({"name": os.path.basename(f), "b64": base64.b64encode(open(f, "rb").read()).decode()})
-          res["files"] = files
+          res["files"] = [{"name": os.path.basename(f), "b64": base64.b64encode(open(f, "rb").read()).decode()}
+                          for f in sorted(glob.glob("/tmp/out/*"))[:6] if os.path.isfile(f) and os.path.getsize(f) < 3_000_000]
+          if spec.get("kind") == "browse" and os.path.exists("/tmp/state.json"): res["state"] = json.load(open("/tmp/state.json"))
           call("/done", res); print("job finished")
           PY
           python /tmp/r.py
