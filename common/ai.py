@@ -17,22 +17,25 @@ def gemini(prompt):
              {"x-goog-api-key": k})
     return "".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"])
 
+# Free Mistral/Nara/Itera/NVIDIA/Inception keys stay in Cloudflare; calls go through the Swanix Brain proxy, authed by the Telegram bot token.
+BRAIN_LLM = "https://swanix-brain.swanixjobs.workers.dev/llm"
+
 def openai_style(url, key_env, model, prompt):
     k = os.environ.get(key_env)
     if not k: raise RuntimeError(f"no {key_env}")
     d = http(url, {"model": model, "messages": [{"role": "user", "content": prompt}],
-                   "max_tokens": 16000 if "mistral" in url or "bynara" in url or "itera" in url or "nvidia" in url or "inception" in url else 30000, "temperature": 0.4}, {"Authorization": f"Bearer {k}"})
+                   "max_tokens": 16000 if url == BRAIN_LLM else 30000, "temperature": 0.4}, {"Authorization": f"Bearer {k}"})
     return d["choices"][0]["message"]["content"]
 
 PROVIDERS = [
     ("gemini", gemini),
     ("groq", lambda p: openai_style("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY",
                                     os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b"), p)),
-    ("mistral", lambda p: openai_style("https://api.mistral.ai/v1/chat/completions", "MISTRAL_API_KEY", "mistral-medium-latest", p)),
-    ("nara", lambda p: openai_style("https://router.bynara.id/v1/chat/completions", "NARA_API_KEY", "minimax-m3.1-flash:free", p)),
-    ("nvidia", lambda p: openai_style("https://integrate.api.nvidia.com/v1/chat/completions", "NVIDIA_API_KEY", "z-ai/glm-5.3-flash", p)),
-    ("inception", lambda p: openai_style("https://api.inceptionlabs.ai/v1/chat/completions", "INCEPTION_API_KEY", "mercury-3", p)),
-    ("itera", lambda p: openai_style("https://api.iteracompute.com/v1/chat/completions", "ITERA_API_KEY", "qwen/qwen3.8-27b", p)),
+    ("mistral", lambda p: openai_style(BRAIN_LLM, "TELEGRAM_BOT_TOKEN", "mistral|mistral-medium-latest", p)),
+    ("nara", lambda p: openai_style(BRAIN_LLM, "TELEGRAM_BOT_TOKEN", "nara|minimax-m3.1-flash:free", p)),
+    ("nvidia", lambda p: openai_style(BRAIN_LLM, "TELEGRAM_BOT_TOKEN", "nvidia|z-ai/glm-5.3-flash", p)),
+    ("inception", lambda p: openai_style(BRAIN_LLM, "TELEGRAM_BOT_TOKEN", "inception|mercury-3", p)),
+    ("itera", lambda p: openai_style(BRAIN_LLM, "TELEGRAM_BOT_TOKEN", "itera|qwen/qwen3.8-27b", p)),
     ("openrouter", lambda p: openai_style("https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY",
                                           os.environ.get("OPENROUTER_MODEL", "openrouter/free"), p)),
 ]
