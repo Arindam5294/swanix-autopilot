@@ -1,20 +1,13 @@
-name: Keys check (temporary, prints only set/missing)
+name: Keys check (temporary, proxy test)
 on: workflow_dispatch
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - env:
-          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          NARA_API_KEY: ${{ secrets.NARA_API_KEY }}
-          ITERA_API_KEY: ${{ secrets.ITERA_API_KEY }}
-          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-          INCEPTION_API_KEY: ${{ secrets.INCEPTION_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         run: |
-          for k in MISTRAL_API_KEY NARA_API_KEY ITERA_API_KEY NVIDIA_API_KEY INCEPTION_API_KEY; do if [ -n "${!k}" ]; then echo "::notice::$k set"; else echo "::warning::$k MISSING"; fi; done
-          code() { curl -s -o /dev/null -w '%{http_code}' -m 40 "$1" -H "Authorization: Bearer $2" -H 'Content-Type: application/json' -d "{\"model\":\"$3\",\"messages\":[{\"role\":\"user\",\"content\":\"Say OK\"}],\"max_tokens\":200}"; }
-          echo "::notice::mistral $(code https://api.mistral.ai/v1/chat/completions "$MISTRAL_API_KEY" mistral-small-latest)"
-          echo "::notice::nara $(code https://router.bynara.id/v1/chat/completions "$NARA_API_KEY" minimax-m3.1-flash:free)"
-          echo "::notice::itera $(code https://api.iteracompute.com/v1/chat/completions "$ITERA_API_KEY" qwen/qwen3.8-27b)"
-          echo "::notice::nvidia $(code https://integrate.api.nvidia.com/v1/chat/completions "$NVIDIA_API_KEY" z-ai/glm-5.3-flash)"
-          echo "::notice::inception $(code https://api.inceptionlabs.ai/v1/chat/completions "$INCEPTION_API_KEY" mercury-3)"
+          for m in "nvidia|z-ai/glm-5.3-flash" "inception|mercury-3" "mistral|mistral-small-latest" "nara|minimax-m3.1-flash:free" "itera|qwen/qwen3.8-27b"; do
+            c=$(curl -s -o /dev/null -w '%{http_code}' -m 100 https://swanix-brain.swanixjobs.workers.dev/llm -H "Authorization: Bearer $TELEGRAM_BOT_TOKEN" -H 'Content-Type: application/json' -d "{\"model\":\"$m\",\"messages\":[{\"role\":\"user\",\"content\":\"Say OK\"}],\"max_tokens\":200}")
+            echo "::notice::$m $c"
+          done
