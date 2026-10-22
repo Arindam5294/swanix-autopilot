@@ -19,6 +19,9 @@ jobs:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: gemini-2.5-flash
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      NARA_API_KEY: ${{ secrets.NARA_API_KEY }}
+      ITERA_API_KEY: ${{ secrets.ITERA_API_KEY }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       GITHUB_TOKEN: ${{ github.token }}
       PYTHONUNBUFFERED: "1"
