@@ -26,7 +26,7 @@ def _left():
 
 def _scrub(s):
     s = str(s)
-    for k in ("GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "MISTRAL_API_KEY", "NARA_API_KEY", "ITERA_API_KEY", "TELEGRAM_BOT_TOKEN"):
+    for k in ("GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "MISTRAL_API_KEY", "NARA_API_KEY", "ITERA_API_KEY", "NVIDIA_API_KEY", "INCEPTION_API_KEY", "TELEGRAM_BOT_TOKEN"):
         v = os.environ.get(k)
         if v and len(v) > 6:
             s = s.replace(v, "***")
@@ -127,6 +127,9 @@ def chain(max_tokens):
     for lab, url, kenv, m in (("mistral", "https://api.mistral.ai/v1/chat/completions", "MISTRAL_API_KEY", "mistral-medium-latest"),
                               ("nara", "https://router.bynara.id/v1/chat/completions", "NARA_API_KEY", "minimax-m3.1-flash:free"),
                               ("itera", "https://api.iteracompute.com/v1/chat/completions", "ITERA_API_KEY", "qwen/qwen3.8-27b"),
+                              ("nvidia", "https://integrate.api.nvidia.com/v1/chat/completions", "NVIDIA_API_KEY", "z-ai/glm-5.3-flash"),
+                              ("inception", "https://api.inceptionlabs.ai/v1/chat/completions", "INCEPTION_API_KEY", "mercury-3"),
+                              ("nvidia-nemotron", "https://integrate.api.nvidia.com/v1/chat/completions", "NVIDIA_API_KEY", "nvidia/nemotron-3.5-lightning-30b-a3b"),
                               ("mistral-small", "https://api.mistral.ai/v1/chat/completions", "MISTRAL_API_KEY", "mistral-small-latest"),
                               ("nara-nemotron", "https://router.bynara.id/v1/chat/completions", "NARA_API_KEY", "nemotron-3.5-lightning-free")):
         if os.environ.get(kenv):
