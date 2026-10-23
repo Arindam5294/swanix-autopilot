@@ -250,7 +250,8 @@ def ai_drafts(mode, items):
               f"Items:\n{json.dumps(lst, ensure_ascii=False)}\n"
               'Return ONLY a JSON list: [{"key":"...","score":7,"fit":"...","draft":"..."}]')
     try:
-        txt = ask(prompt, min_len=50)
+        from ai import think
+        txt = think(prompt, tools=False)   # Swanix Brain: knows his builds + rules, self-checks
         m = re.search(r"\[.*\]", txt, re.S)
         return {r["key"]: r for r in json.loads(m.group(0)) if isinstance(r, dict) and r.get("key")}
     except Exception as e:
