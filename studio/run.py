@@ -232,7 +232,8 @@ def run_quick(job, deadline):
     if kind == "info":
         res = quick.make_info(job["prompt"], html=src and src["source"]["html"],
                               size=src and tuple(src["source"].get("size") or (1080, 1350)),
-                              instruction=edit and edit["instruction"], original=original)
+                              instruction=edit and edit["instruction"], original=original,
+                              hero=src and src["source"].get("hero"))
     elif kind == "pdf":
         res = quick.make_pdf(job["prompt"], html=src and src["source"]["html"],
                              instruction=edit and edit["instruction"], original=original)
