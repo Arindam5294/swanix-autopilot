@@ -152,6 +152,8 @@ def main():
     # ord.net Ordinals market digest, twice a day (9:00 and 21:00 IST)
     if os.environ.get("ORDNET", "1") == "1":
         slot, key = ordnet.due_slot(state)
+        if slot and first:   # first run only records history: mark the slot done, don't post
+            state["ordnet_done"].append(key); slot = None
         if slot:
             try:
                 cols, sales, rate = ordnet.fetch_market()

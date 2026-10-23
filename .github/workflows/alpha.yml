@@ -8,7 +8,9 @@ permissions:
 concurrency: { group: alpha, cancel-in-progress: false }
 jobs:
   run:
-    if: ${{ vars.ALPHA_ON == 'true' }}
+    # Worker/manual dispatches always run (on/off lives in Telegram /auto, like shield/jobs);
+    # GitHub's own cron only runs when ALPHA_ON=true, so the two never double-post.
+    if: ${{ github.event_name != 'schedule' || vars.ALPHA_ON == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults: { run: { working-directory: alpha } }

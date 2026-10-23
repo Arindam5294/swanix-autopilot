@@ -113,8 +113,15 @@ jobs:
               at = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=5, minutes=30))).strftime("%d %b %I:%M %p")
               (F / "latest.json").write_text(json.dumps({"at": at, "pairs": list(pairs.values())}, indent=1))
           print(len(parts), "parts,", len(alerts), "alerts kept,", len(calls), "calls in ledger")
+          # heartbeat: proves each scan ran even when every setup is blocked (quiet scans don't touch latest/alerts)
+          cfg = load(F / "oracle_config.json", {}); ist = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+          recent = [b for b in blocked.values() if now - b.get("ts", 0) < 3600]
+          (F / "status.json").write_text(json.dumps({"last_scan": datetime.datetime.now(ist).strftime("%d %b %Y %I:%M %p IST"), "unix": int(now),
+              "parts": len(parts), "shadow": cfg.get("shadow", True), "blocked_last_hour": [f'{b.get("sym")} {b.get("side")}: {b.get("reason")}' for b in recent],
+              "new_calls_last_hour": [c["id"] for c in calls.values() if now - c.get("ts", 0) < 3600],
+              "new_alerts_last_hour": [a["id"] for a in alerts.values() if now - a.get("ts", 0) < 3600]}, indent=1, ensure_ascii=False))
           PY
           python3 forecast/learn.py || true
           git config user.name "swanix-bot 🐸"; git config user.email "bot@swanix.local"
-          for f in forecast/sent.json forecast/latest.json forecast/alerts.json forecast/learnings.json forecast/calls.json forecast/blocked.json forecast/scorecard.json; do [ -f "$f" ] && git add "$f"; done
+          for f in forecast/status.json forecast/sent.json forecast/latest.json forecast/alerts.json forecast/learnings.json forecast/calls.json forecast/blocked.json forecast/scorecard.json; do [ -f "$f" ] && git add "$f"; done
           git diff --cached --quiet || (git commit -qm "🐸 oracle state" && git pull -q --rebase && git push -q) || true
