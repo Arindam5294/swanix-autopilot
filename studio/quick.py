@@ -42,7 +42,7 @@ def make_info(req, html=None, size=None, instruction=None, original=None, hero=N
     else:
         facts = ""
         try:   # research first so the content is specific, not generic filler
-            facts, _src = llm.grounded(f"List 8-12 accurate, specific facts, figures (with units and year) and steps for an infographic about: {req}. Short bullets only.")
+            facts, _src = llm.researched(f"List 8-12 accurate, specific facts, figures (with units and year) and steps for an infographic about: {req}. Short bullets only.")
         except Exception as e:
             print("   research skipped:", e)
         hero = None
