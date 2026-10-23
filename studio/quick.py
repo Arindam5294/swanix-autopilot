@@ -30,7 +30,11 @@ def size_for(text):
     return (1080, 1920) if re.search(r"\b(story|stories|9:16|vertical|status|reel)\b", text.lower()) else (1080, 1350)
 
 
-def make_info(req, html=None, size=None, instruction=None, original=None):
+def _png(doc, path, w, h, hero):
+    return render.png(doc.replace("__HERO__", hero) if hero else doc.replace('src="__HERO__"', 'src="" style="display:none"'), path, w, h)
+
+
+def make_info(req, html=None, size=None, instruction=None, original=None, hero=None):
     w, h = size or size_for(req)
     system = prompts.INFOGRAPHIC_SYSTEM.format(W=w, H=h)
     if instruction:
@@ -41,10 +45,16 @@ def make_info(req, html=None, size=None, instruction=None, original=None):
             facts, _src = llm.grounded(f"List 8-12 accurate, specific facts, figures (with units and year) and steps for an infographic about: {req}. Short bullets only.")
         except Exception as e:
             print("   research skipped:", e)
-        prompt = prompts.info_prompt(req, w, h, facts or "")
+        hero = None
+        try:   # free Workers AI illustration for the header; all text stays in HTML
+            ap = llm.ask(prompts.ART_PROMPT.format(req=req, mood="topic-appropriate"), max_tokens=400, temp=0.8, label="art-prompt")
+            hero = llm.image(ap.strip().strip('"')[:900] + ", no text, no letters", 1344 if w >= h else 1024, 768 if w >= h else 1024)
+        except Exception as e:
+            print("   hero art skipped:", e)
+        prompt = prompts.info_prompt(req, w, h, facts or "", bool(hero))
     doc = llm.ask(prompt, system=system, max_tokens=16000, check=llm.html_doc, temp=0.6, label="infographic")
     OUT.mkdir(parents=True, exist_ok=True)
-    out = render.png(doc, OUT / f"info-{slug(original or req)}-{int(time.time())}.png", w, h)
+    out = _png(doc, OUT / f"info-{slug(original or req)}-{int(time.time())}.png", w, h, hero)
     best = (0, doc, out)
     for rnd in range(2):   # v5: look at the rendered image, fix what a picky art director would flag
         try:
@@ -62,7 +72,7 @@ def make_info(req, html=None, size=None, instruction=None, original=None):
         try:
             doc2 = llm.ask(prompts.edit_html_prompt("infographic", original or req, doc, "Fix these problems a senior art director found: "
                            + "; ".join(map(str, rv.get("fixes") or []))), system=system, max_tokens=16000, check=llm.html_doc, temp=0.4, label="infographic-fix")
-            out2 = render.png(doc2, OUT / f"info-{slug(original or req)}-{int(time.time())}-r{rnd + 1}.png", w, h)
+            out2 = _png(doc2, OUT / f"info-{slug(original or req)}-{int(time.time())}-r{rnd + 1}.png", w, h, hero)
             doc, out = doc2, out2
         except Exception as e:
             print("   fix round failed:", e); break
@@ -79,7 +89,7 @@ def make_info(req, html=None, size=None, instruction=None, original=None):
         photo = out.with_suffix(".jpg")
         Image.open(out).convert("RGB").save(photo, quality=92)
     return {"files": [("photo", photo, ""), ("document", out, "Full-quality file")],
-            "source": {"html": doc, "size": [w, h]}}
+            "source": {"html": doc, "size": [w, h], "hero": hero}}
 
 
 def make_pdf(req, html=None, instruction=None, original=None):
