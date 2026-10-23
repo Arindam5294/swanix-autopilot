@@ -26,6 +26,10 @@ DESIGN SYSTEM
 - Fill the canvas evenly: no half-empty cards, no big blank areas; cards in a row should have similar content weight.
 - Content: real, specific, accurate facts, numbers, steps or tips about the topic. No lorem ipsum, no placeholders,
   no "Your text here". If a figure is uncertain, phrase it as approximate ("~", "about") rather than inventing precision.
+- NO AI SLOP: no generic filler ("In today's fast-paced world", "unlock", "revolutionize", "game-changer"), no emoji,
+  no vague claims without a number or concrete example, no more than 6 content blocks, no repeated ideas across cards,
+  no decorative blobs that carry no information. Every block must teach something specific. At least one real chart or
+  comparison built from the FACTS given. Prefer fewer, bigger, sharper elements over many small ones.
 - Footer: a small source/credit line (e.g. "Sources: official data, 2024") in muted text.
 
 REFERENCE PATTERN (adapt freely: change palette, fonts, block types and arrangement to suit the topic; keep the
@@ -112,9 +116,17 @@ Request: <<<{p}>>>
 Reply with one word: info, pdf or video."""
 
 
-def info_prompt(req, w, h):
+def info_prompt(req, w, h, facts=""):
     return (f"Create an infographic about:\n<<<{req}>>>\n\nCanvas {w}x{h}px. Make it genuinely excellent: strong focal point, "
-            "real data with labels, tight hierarchy, generous whitespace, everything fits.")
+            "real data with labels, tight hierarchy, generous whitespace, everything fits."
+            + (f"\n\nFACTS (researched; build the content from these, keep numbers exact, do not invent others):\n{facts}" if facts else ""))
+
+
+INFO_REVIEW = """You are a strict art director reviewing a social-media infographic (image attached) made for this request:
+<<<{req}>>>
+Score it 1-10 like a top design studio would (10 = portfolio quality). Check: overlapping/clipped/cut-off text, empty or
+unbalanced areas, weak hierarchy, tiny text, low contrast, generic AI-slop wording, vague content without real numbers,
+broken charts, anything that looks amateur. Reply ONLY JSON: {{"score": 6, "fixes": ["specific fix 1", "specific fix 2"]}}"""
 
 
 def pdf_prompt(req):
