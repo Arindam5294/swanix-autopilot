@@ -116,10 +116,18 @@ Request: <<<{p}>>>
 Reply with one word: info, pdf or video."""
 
 
-def info_prompt(req, w, h, facts=""):
+def info_prompt(req, w, h, facts="", hero=False):
     return (f"Create an infographic about:\n<<<{req}>>>\n\nCanvas {w}x{h}px. Make it genuinely excellent: strong focal point, "
             "real data with labels, tight hierarchy, generous whitespace, everything fits."
-            + (f"\n\nFACTS (researched; build the content from these, keep numbers exact, do not invent others):\n{facts}" if facts else ""))
+            + (f"\n\nFACTS (researched; build the content from these, keep numbers exact, do not invent others):\n{facts}" if facts else "")
+            + ("\n\nHERO ART: a custom illustration (no text in it) is available. Use it exactly once as <img src=\"__HERO__\"> "
+               "in the header area or as a background behind the title with a dark/blurred overlay so the title stays readable "
+               "(object-fit:cover, border-radius matching the cards). Never put important text over its busy parts." if hero else ""))
+
+
+ART_PROMPT = """Write ONE image-generation prompt (max 60 words) for a premium editorial illustration to sit in the header of an
+infographic about: <<<{req}>>>. Style: modern, clean, cinematic lighting, cohesive with a {mood} palette, strong single subject,
+lots of negative space, high detail. It must contain NO text, letters, numbers, logos or watermarks. Reply with the prompt only."""
 
 
 INFO_REVIEW = """You are a strict art director reviewing a social-media infographic (image attached) made for this request:
