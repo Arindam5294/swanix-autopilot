@@ -83,12 +83,35 @@ def main():
         print("first run: remembered", len(seen), "jobs, no alert sent"); return
     if not new:
         print("no new matching jobs", errors); return
-    lines = ["🧭 New job matches"]
-    for g, js in new.items():
-        lines.append(f"\n{g} ({len(js)})")
-        for j in js[:15]:
-            co = f" · {j['company']}" if j["company"] else ""
-            lines.append(f"• {j['title']}{co} [{j['src']}]\n  {j['url']}")
+    # v5: Swanix Brain judges each keyword match (fit for HIM, not just the keyword) and ranks; keyword list is the fallback.
+    flat = [dict(jb, group=g, key=str(i)) for i, (g, jb) in enumerate((g, jb) for g, js in new.items() for jb in js[:25])]
+    verdict = None
+    try:
+        sys.path.insert(0, str(HERE.parent / "common")); from ai import judge
+        verdict = judge("These jobs matched keywords for Swanix (6+ yrs Web3 community/ambassador/moderator roles, builds AI x crypto tools; "
+                        "also a B.Tech Agricultural Engineering fresher in India wanting private Agri Engg/CAD roles, remote or near Raipur). "
+                        "For each, decide if it is a REAL fit he can land (seniority, location/remote, skills), score 1-10, and give a one-line why "
+                        "plus a one-line opener he could use. Drop spam, senior-only, on-site abroad. "
+                        'Return ONLY JSON list: [{"key":"0","keep":true,"score":8,"why":"...","opener":"..."}]',
+                        [{"key": x["key"], "title": x["title"], "company": x["company"], "source": x["src"], "group": x["group"]} for x in flat], tools=False)
+    except Exception as e:
+        print("judge skipped:", e)
+    if isinstance(verdict, list) and verdict:
+        vd = {str(v.get("key")): v for v in verdict if isinstance(v, dict)}
+        picks = sorted([dict(x, **vd[x["key"]]) for x in flat if vd.get(x["key"], {}).get("keep")], key=lambda x: -float(x.get("score") or 0))
+        if not picks:
+            print("Brain kept none of", len(flat)); return
+        lines = ["🧭 New jobs that fit you (ranked by Swanix Brain)"]
+        for x in picks[:15]:
+            co = f" · {x['company']}" if x["company"] else ""
+            lines.append(f"\n{x.get('score', '?')}/10 {x['title']}{co} [{x['src']}]\n  {x['url']}\n  Why: {x.get('why', '')}\n  Opener: {x.get('opener', '')}")
+    else:
+        lines = ["🧭 New job matches"]
+        for g, js in new.items():
+            lines.append(f"\n{g} ({len(js)})")
+            for j in js[:15]:
+                co = f" · {j['company']}" if j["company"] else ""
+                lines.append(f"• {j['title']}{co} [{j['src']}]\n  {j['url']}")
     msg = "\n".join(lines)
     if not telegram(msg):
         (HERE / "digest.md").write_text(msg)
