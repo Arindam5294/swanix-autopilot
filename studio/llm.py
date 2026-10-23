@@ -120,6 +120,9 @@ def chain(max_tokens):
     out = []
     for m in gemini_models():
         out.append((f"gemini:{m}", "gemini", lambda p, s, t, m=m: _gemini(m, p, s, min(max_tokens * 2, 65000), t)))
+    if os.environ.get("TELEGRAM_BOT_TOKEN"):   # v5: Swanix Brain picks the strongest free model with fallback
+        out.append(("brain:auto-hard", "brain", lambda p, s, t: _openai("https://swanix-brain.swanixjobs.workers.dev/llm",
+                                                                       "TELEGRAM_BOT_TOKEN", "auto|hard", p, s, min(max_tokens, 12000), t)))
     gq = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
     out.append((f"groq:{gq}", "groq", lambda p, s, t: _openai("https://api.groq.com/openai/v1/chat/completions",
                                                             "GROQ_API_KEY", gq, p, s, min(max_tokens, 60000), t)))
@@ -207,6 +210,27 @@ def grounded(prompt, system=""):
         except Exception as e:
             print("   grounding unavailable:", _scrub(e))
     return None, []
+
+
+def see(png_path, question):
+    """Gemini vision: look at a rendered image and answer. Returns text or None."""
+    import base64
+    k = os.environ.get("GEMINI_API_KEY")
+    if not k:
+        return None
+    b64 = base64.b64encode(open(png_path, "rb").read()).decode()
+    for m in gemini_models()[:3]:
+        try:
+            d = http(f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent",
+                     {"contents": [{"role": "user", "parts": [{"inline_data": {"mime_type": "image/png", "data": b64}}, {"text": question}]}],
+                      "generationConfig": {"maxOutputTokens": 3000, "temperature": 0.2}}, {"x-goog-api-key": k}, timeout=120)
+            c = (d.get("candidates") or [{}])[0]
+            t = "".join(x.get("text", "") for x in c.get("content", {}).get("parts", []) if not x.get("thought"))
+            if t.strip():
+                return t
+        except Exception as e:
+            print("   vision unavailable on", m, _scrub(e))
+    return None
 
 
 # ---------------- answer checkers ----------------
