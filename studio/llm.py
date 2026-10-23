@@ -233,6 +233,27 @@ def see(png_path, question):
     return None
 
 
+def image(prompt, w=1024, h=1024):
+    """Free Workers AI image (Leonardo Lucid Origin -> Phoenix -> Flux) via Swanix Brain. Returns JPEG data URI or None."""
+    tok = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not tok:
+        return None
+    try:
+        d = http("https://swanix-brain.swanixjobs.workers.dev/llm", {"image": prompt, "w": w, "h": h},
+                 {"authorization": "Bearer " + tok, "user-agent": "Mozilla/5.0 swanix-studio"}, timeout=120)
+        b64 = d.get("b64")
+        if not b64:
+            print("   image failed:", _scrub(str(d)[:200])); return None
+        import base64, io
+        from PIL import Image
+        im = Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGB")
+        buf = io.BytesIO(); im.save(buf, "JPEG", quality=88)
+        print(f"   [image] {d.get('model')} ok {im.size}")
+        return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+    except Exception as e:
+        print("   image unavailable:", _scrub(e)); return None
+
+
 # ---------------- answer checkers ----------------
 def strip_fences(t):
     t = t.strip()
