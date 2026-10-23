@@ -59,6 +59,20 @@ def match(job):
             return group
     return None
 
+def brain_rank(new):
+    """Ask Swanix Brain which keyword matches actually fit him. {key: {fit, why}} or {} if Brain is down."""
+    try:
+        sys.path.insert(0, str(HERE.parent / "common"))
+        from ai import think
+        items = [{"key": x["url"] or x["title"], "title": x["title"], "company": x["company"], "group": g} for g, js in new.items() for x in js[:25]]
+        res = think("These job posts passed a keyword filter. Judge each one for Swanix using what you know about him (crypto/Web3 community, "
+                    "moderator, ambassador, growth and marketing roles; Agri Engineering internships; remote or near Raipur; fresher). "
+                    "fit = 1-10 (10 = apply today), why = under 15 words, concrete. Penalise senior/10+ yrs roles, scams, unpaid 'ambassador' MLMs and "
+                    "roles needing a degree he lacks. Return ONLY JSON list: [{\"key\":\"...\",\"fit\":7,\"why\":\"...\"}]", items, as_json=True, tools=False)
+        return {r["key"]: r for r in (res or []) if isinstance(r, dict) and r.get("key")}
+    except Exception as e:
+        print("Brain ranking skipped:", e); return {}
+
 def main():
     seen_f = HERE / "seen.json"
     seen = set(json.loads(seen_f.read_text())) if seen_f.exists() else set()
@@ -83,35 +97,21 @@ def main():
         print("first run: remembered", len(seen), "jobs, no alert sent"); return
     if not new:
         print("no new matching jobs", errors); return
-    # v5: Swanix Brain judges each keyword match (fit for HIM, not just the keyword) and ranks; keyword list is the fallback.
-    flat = [dict(jb, group=g, key=str(i)) for i, (g, jb) in enumerate((g, jb) for g, js in new.items() for jb in js[:25])]
-    verdict = None
-    try:
-        sys.path.insert(0, str(HERE.parent / "common")); from ai import judge
-        verdict = judge("These jobs matched keywords for Swanix (6+ yrs Web3 community/ambassador/moderator roles, builds AI x crypto tools; "
-                        "also a B.Tech Agricultural Engineering fresher in India wanting private Agri Engg/CAD roles, remote or near Raipur). "
-                        "For each, decide if it is a REAL fit he can land (seniority, location/remote, skills), score 1-10, and give a one-line why "
-                        "plus a one-line opener he could use. Drop spam, senior-only, on-site abroad. "
-                        'Return ONLY JSON list: [{"key":"0","keep":true,"score":8,"why":"...","opener":"..."}]',
-                        [{"key": x["key"], "title": x["title"], "company": x["company"], "source": x["src"], "group": x["group"]} for x in flat], tools=False)
-    except Exception as e:
-        print("judge skipped:", e)
-    if isinstance(verdict, list) and verdict:
-        vd = {str(v.get("key")): v for v in verdict if isinstance(v, dict)}
-        picks = sorted([dict(x, **vd[x["key"]]) for x in flat if vd.get(x["key"], {}).get("keep")], key=lambda x: -float(x.get("score") or 0))
-        if not picks:
-            print("Brain kept none of", len(flat)); return
-        lines = ["🧭 New jobs that fit you (ranked by Swanix Brain)"]
-        for x in picks[:15]:
-            co = f" · {x['company']}" if x["company"] else ""
-            lines.append(f"\n{x.get('score', '?')}/10 {x['title']}{co} [{x['src']}]\n  {x['url']}\n  Why: {x.get('why', '')}\n  Opener: {x.get('opener', '')}")
-    else:
-        lines = ["🧭 New job matches"]
-        for g, js in new.items():
-            lines.append(f"\n{g} ({len(js)})")
-            for j in js[:15]:
-                co = f" · {j['company']}" if j["company"] else ""
-                lines.append(f"• {j['title']}{co} [{j['src']}]\n  {j['url']}")
+    verdict = brain_rank(new)
+    lines = ["🧭 New job matches" + (" (ranked by Brain)" if verdict else "")]
+    for g, js in new.items():
+        if verdict:
+            js = [x for x in js if verdict.get(x["url"] or x["title"], {}).get("fit", 5) >= 6]
+            js.sort(key=lambda x: -verdict.get(x["url"] or x["title"], {}).get("fit", 0))
+        if not js: continue
+        lines.append(f"\n{g} ({len(js)})")
+        for j in js[:15]:
+            co = f" · {j['company']}" if j["company"] else ""
+            v = verdict.get(j["url"] or j["title"], {}) if verdict else {}
+            why = f"\n  {v.get('fit')}/10 · {v.get('why')}" if v.get("why") else ""
+            lines.append(f"• {j['title']}{co} [{j['src']}]{why}\n  {j['url']}")
+    if len(lines) == 1:
+        print("Brain found no strong fits this round"); return
     msg = "\n".join(lines)
     if not telegram(msg):
         (HERE / "digest.md").write_text(msg)
