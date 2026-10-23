@@ -190,6 +190,25 @@ def ask(prompt, system="", max_tokens=16000, check=None, temp=0.5, rounds=2, lab
     raise AIError(_scrub(last))
 
 
+def researched(prompt):
+    """Facts for a Studio job: Gemini grounding first, then Swanix Brain's web-search judgment call."""
+    t, src = grounded(prompt)
+    if t:
+        return t, src
+    tok = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not tok:
+        return None, []
+    try:
+        d = http("https://swanix-brain.swanixjobs.workers.dev/llm", {"think": True, "messages": [], "task": prompt + " Use web_search to check current figures. Bullets only, each with its year/source."},
+                 {"authorization": "Bearer " + tok, "user-agent": "Mozilla/5.0 swanix-studio"}, timeout=150)
+        t = d.get("reply") or d.get("answer") or d.get("text")
+        if t:
+            print("   [research] via Brain"); return t, []
+    except Exception as e:
+        print("   brain research unavailable:", _scrub(e))
+    return None, []
+
+
 def grounded(prompt, system=""):
     """Gemini + Google Search grounding (free tier allows it on Flash). Returns (text, sources) or (None, [])."""
     if not os.environ.get("GEMINI_API_KEY"):
@@ -230,6 +249,19 @@ def see(png_path, question):
                 return t
         except Exception as e:
             print("   vision unavailable on", m, _scrub(e))
+    tok = os.environ.get("TELEGRAM_BOT_TOKEN")   # fallback: free Workers AI vision via Brain
+    if tok:
+        try:
+            import io
+            from PIL import Image
+            im = Image.open(png_path).convert("RGB"); im.thumbnail((1080, 1920))
+            buf = io.BytesIO(); im.save(buf, "JPEG", quality=85)
+            d = http("https://swanix-brain.swanixjobs.workers.dev/llm", {"see": "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode(), "q": question},
+                     {"authorization": "Bearer " + tok, "user-agent": "Mozilla/5.0 swanix-studio"}, timeout=120)
+            if d.get("text"):
+                print("   [vision]", d.get("model")); return d["text"]
+        except Exception as e:
+            print("   cf vision unavailable:", _scrub(e))
     return None
 
 
