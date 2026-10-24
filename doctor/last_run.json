@@ -18,7 +18,8 @@
     "npm run build (package.json)",
     "npm run test (package.json)"
    ],
-   "cause": "Found problems but couldn't reach the free AI to fix them (all free AI providers were busy or failed (mistral: HTTP Error 429: Too Many Requests; brain: The read operation timed out; gemini: HTTP Error 404: Not Found; groq: HTTP Error 413: Payload Too Large; mistral: HTTP Error 429: Too Many Requests))."
+   "cause": "The entire `src/data/` directory (containing `brands.ts`, `drugs.ts`, `interactions.ts`, `openfda.ts`, and `http.ts`) is missing from the GitHub repository, causing TypeScript compilation errors during build. Additionally, `npm run test` fails because it expects the Dose Buddy server to be running locally on port 8788.",
+   "owner_action": "1. Check your local computer for the `src/data/` folder and push it to GitHub (and check your `.gitignore` file to ensure `src/data/` is not excluded).\n2. Start the application server before running `npm run test` so the test client can connect to port 8788."
   }
  ]
 }
