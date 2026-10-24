@@ -153,7 +153,7 @@ def _chat(url, key, model, prompt, max_tokens=12000):
 
 def _gemini(prompt):
     k = os.environ["GEMINI_API_KEY"]
-    d = _post(f"https://generativelanguage.googleapis.com/v1beta/models/{os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')}:generateContent",
+    d = _post(f"https://generativelanguage.googleapis.com/v1beta/models/{os.environ.get('DOCTOR_GEMINI_MODEL', 'gemini-flash-latest')}:generateContent",
               {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"maxOutputTokens": 16000, "temperature": 0.2}},
               {"x-goog-api-key": k})
     return "".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"])
@@ -168,6 +168,8 @@ def providers():
     if e.get("GROQ_API_KEY"):
         out.append(("groq", lambda p: _chat("https://api.groq.com/openai/v1/chat/completions", e["GROQ_API_KEY"], "openai/gpt-oss-120b", p, 8000)))
     if e.get("TELEGRAM_BOT_TOKEN"):
+        out.append(("cerebras", lambda p: _chat(BRAIN_LLM, e["TELEGRAM_BOT_TOKEN"], "cerebras|gpt-oss-120b", p)))
+        out.append(("nvidia", lambda p: _chat(BRAIN_LLM, e["TELEGRAM_BOT_TOKEN"], "nvidia|z-ai/glm-5.3-flash", p)))
         out.append(("mistral", lambda p: _chat(BRAIN_LLM, e["TELEGRAM_BOT_TOKEN"], "mistral|mistral-medium-latest", p)))
     if e.get("OPENROUTER_API_KEY"):
         out.append(("openrouter", lambda p: _chat("https://openrouter.ai/api/v1/chat/completions", e["OPENROUTER_API_KEY"], "openrouter/free", p)))
@@ -397,9 +399,9 @@ def related_files(repo_dir, files, text, extra):
             body = open(p, encoding="utf-8").read()
         except Exception:
             continue
-        if len(body) > 14000:
-            body = body[:14000] + "\n…(file cut here)…"
-        if total + len(body) > 60000:
+        if len(body) > 8000:
+            body = body[:8000] + "\n…(file cut here)…"
+        if total + len(body) > 26000:
             break
         total += len(body)
         out.append(f"===== FILE: {f}\n{body}")
@@ -588,7 +590,7 @@ def doctor_repo(r):
 
 
 def _problem_text(problems):
-    return "\n\n".join(f"### {p['check']}\n{p.get('cmd', '')}\n{(p.get('output') or '')[-7000:]}" for p in problems)[:24000]
+    return "\n\n".join(f"### {p['check']}\n{p.get('cmd', '')}\n{(p.get('output') or '')[-4000:]}" for p in problems)[:10000]
 
 
 def fix_repo(r, d, files, problems, res):
@@ -669,7 +671,7 @@ def fix_repo(r, d, files, problems, res):
         try:
             j, via = ask_json(FIX_PROMPT.format(repo=full, problems=_problem_text(problems), tree=", ".join(files[:200]),
                                                 files=related_files(d, tracked(d), ci_logs + _problem_text(problems), wf_paths),
-                                                history="Your previous fix was pushed, but the repo's CI failed on it:\n" + ci_logs[-9000:] + "\nFix that too (edits apply on top of your previous fix).",
+                                                history="Your previous fix was pushed, but the repo's CI failed on it:\n" + ci_logs[-5000:] + "\nFix that too (edits apply on top of your previous fix).",
                                                 maxf=CFG["max_files_per_fix"], maxl=CFG["max_lines_per_fix"], protected=", ".join(CFG["never_edit"])))
         except Exception:
             break
