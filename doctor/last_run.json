@@ -18,8 +18,8 @@
     "npm run build (package.json)",
     "npm run test (package.json)"
    ],
-   "cause": "The entire `src/data/` directory (containing `brands.ts`, `drugs.ts`, `interactions.ts`, `openfda.ts`, and `http.ts`) is missing from the GitHub repository, causing TypeScript compilation errors during build. Additionally, `npm run test` fails because it expects the Dose Buddy server to be running locally on port 8788.",
-   "owner_action": "1. Check your local computer for the `src/data/` folder and push it to GitHub (and check your `.gitignore` file to ensure `src/data/` is not excluded).\n2. Start the application server before running `npm run test` so the test client can connect to port 8788."
+   "cause": "The repository is missing the entire `src/data/` directory (containing `drugs.ts`, `brands.ts`, `interactions.ts`, `openfda.ts`, and `http.ts`), causing TypeScript compilation to fail and preventing the server from starting for tests.",
+   "owner_action": "Commit and push the missing `src/data/` directory to the repository, or remove `src/data/` / `data/` from `.gitignore` if it was accidentally ignored. (No change made: this repo is set to report-only in the config, so I don't change it.)"
   }
  ]
 }
