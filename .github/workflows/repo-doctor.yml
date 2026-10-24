@@ -1,6 +1,8 @@
 name: Repo Doctor (checks all repos, fixes errors, reports on Telegram)
 # Started daily at 6:00 AM IST by the swanix-studio-bot Cloudflare Worker (GitHub's own cron doesn't fire on this repo),
 # by /doctor now in Telegram, or by hand here. Switch off: /doctor off, a file doctor/OFF, or repo variable DOCTOR_OFF=true.
+# The engine lives in the public repo Arindam5294/repo-doctor (pinned below to an exact commit).
+# The rules (doctor/config.json), reports and secrets stay here and are never sent to that repo.
 on:
   workflow_dispatch:
     inputs:
@@ -25,21 +27,34 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      GEMINI_MODEL: gemini-2.5-flash
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      LLM_ROUTER_URL: https://swanix-brain.swanixjobs.workers.dev/llm
+      LLM_ROUTER_KEY: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      LLM_ROUTER_MODELS: "auto|hard,cerebras|gpt-oss-120b,nvidia|z-ai/glm-5.3-flash,mistral|mistral-medium-latest"
+      DOCTOR_CONFIG: doctor/config.json
+      DOCTOR_REPORTS_DIR: doctor/reports
+      DOCTOR_STATE_FILE: doctor/last_run.json
+      DOCTOR_OFF_FILE: doctor/OFF
       ONLY_REPOS: ${{ github.event.inputs.repos }}
       DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
       PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v4
+      - name: Get the Repo Doctor engine (public repo, pinned)
+        uses: actions/checkout@v4
+        with:
+          repository: Arindam5294/repo-doctor
+          ref: 65e676f352d783c34ceaf033a8f78bd6f817dd3b
+          path: .repo-doctor
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - uses: actions/setup-node@v4
         with: { node-version: "20" }
-      - run: pip install -q pyyaml
+      - run: pip install -q -r .repo-doctor/requirements.txt
       - name: Check, fix and report
-        run: python doctor/doctor.py
+        run: python .repo-doctor/repo_doctor.py
       - name: Save today's report in this repo
         if: always()
         run: |
