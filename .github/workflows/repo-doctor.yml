@@ -1,0 +1,53 @@
+name: Repo Doctor (checks all repos, fixes errors, reports on Telegram)
+# Started daily at 6:00 AM IST by the swanix-studio-bot Cloudflare Worker (GitHub's own cron doesn't fire on this repo),
+# by /doctor now in Telegram, or by hand here. Switch off: /doctor off, a file doctor/OFF, or repo variable DOCTOR_OFF=true.
+on:
+  workflow_dispatch:
+    inputs:
+      repos:
+        description: "Only these repos (comma list). Blank = all"
+        required: false
+        default: ""
+      dry_run:
+        description: "true = diagnose and report only, change nothing"
+        required: false
+        default: "false"
+permissions:
+  contents: write
+concurrency: { group: repo-doctor, cancel-in-progress: false }
+jobs:
+  doctor:
+    if: ${{ vars.DOCTOR_OFF != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    env:
+      DOCTOR_GH_TOKEN: ${{ secrets.STUDIO_GH_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: gemini-2.5-flash
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      ONLY_REPOS: ${{ github.event.inputs.repos }}
+      DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - run: pip install -q pyyaml
+      - name: Check, fix and report
+        run: python doctor/doctor.py
+      - name: Save today's report in this repo
+        if: always()
+        run: |
+          git config user.name "Repo Doctor"; git config user.email "doctor@users.noreply.github.com"
+          for i in 1 2 3 4 5; do
+            git add doctor/reports doctor/last_run.json 2>/dev/null || true
+            git diff --cached --quiet && break
+            git commit -qm "Repo Doctor report $(TZ=Asia/Kolkata date +%F)" || break
+            git pull -q --rebase origin main && git push -q origin HEAD:main && break
+            sleep 5
+          done
