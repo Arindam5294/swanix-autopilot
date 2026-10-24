@@ -45,7 +45,8 @@ jobs:
           { echo "clip<<EOF"; echo "$CLIP"; echo "EOF"; } >> "$GITHUB_OUTPUT"
       - name: Tell you when no clip qualified (so it never fails silently)
         if: steps.pick.outputs.clip == ''
-        run: python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram('Botbeat: no new viral clip passed the filters this run. Send the bot a link to force one.')" || true
+        run: |
+          python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram('Botbeat: no new viral clip passed the filters this run. Send the bot a link to force one.')" || true
       - uses: denoland/setup-deno@v2
       - name: Free Cloudflare WARP proxy (backup route if YouTube blocks GitHub)
         if: steps.pick.outputs.clip != ''
