@@ -1,0 +1,80 @@
+{
+  "_help": "Repo Doctor settings. Plain words: owner = whose repos; skip_repos = never touched; report_only_repos = checked and explained but never changed; hold_paths = folders it must not edit (until the date shown); never_edit = files/folders that deal with money, trades or wallets, never edited; never_rerun = workflows it will not start again after a fix (they post, upload or trade). To switch the doctor off: create a file doctor/OFF, or send /doctor off in Telegram.",
+  "owner": "Arindam5294",
+  "skip_repos": [],
+  "report_only_repos": [
+    "reset-mining"
+  ],
+  "hold_paths": [
+    {
+      "repo": "swanix-autopilot",
+      "path": "botbeat/",
+      "until": "2026-10-27",
+      "why": "being repaired separately right now"
+    },
+    {
+      "repo": "swanix-autopilot",
+      "path": ".github/workflows/botbeat.yml",
+      "until": "2026-10-27",
+      "why": "being repaired separately right now"
+    }
+  ],
+  "never_edit": [
+    "doctor/",
+    "alpha/",
+    "forecast/",
+    "oracle",
+    "trade",
+    "kronos",
+    "wallet",
+    "TradingAgents/",
+    ".env",
+    "secret",
+    ".pem",
+    "id_rsa",
+    "workflows/alpha",
+    "workflows/forecast"
+  ],
+  "never_rerun": [
+    "alpha",
+    "forecast",
+    "oracle",
+    "trade",
+    "kronos",
+    "botbeat",
+    "jobs",
+    "hunt",
+    "studio",
+    "runner",
+    "update",
+    "connect",
+    "reset",
+    "mining",
+    "deploy",
+    "publish",
+    "release",
+    "pages",
+    "doctor"
+  ],
+  "ignore_dirs": [
+    "node_modules",
+    ".git",
+    "MoneyPrinterTurbo",
+    "TradingAgents",
+    ".pylib",
+    "vendor",
+    "third_party",
+    "dist",
+    "build",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "whisper_out"
+  ],
+  "recent_days": 7,
+  "max_files_per_fix": 10,
+  "max_lines_per_fix": 300,
+  "max_fix_rounds": 2,
+  "max_llm_calls": 24,
+  "time_budget_minutes": 60
+}
