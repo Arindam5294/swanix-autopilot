@@ -1,8 +1,8 @@
 name: Repo Doctor (checks all repos, fixes errors, reports on Telegram)
 # Started daily at 6:00 AM IST by the swanix-studio-bot Cloudflare Worker (GitHub's own cron doesn't fire on this repo),
-# by /doctor now in Telegram, or by hand here. Switch off: /doctor off, a file doctor/OFF, or repo variable DOCTOR_OFF=true.
-# The engine lives in the public repo Arindam5294/repo-doctor (pinned below to an exact commit).
-# The rules (doctor/config.json), reports and secrets stay here and are never sent to that repo.
+# by /doctor now in Telegram, or by hand here. Switch off: /doctor off, a file OFF in the private repo, or repo variable DOCTOR_OFF=true.
+# Engine: public repo Arindam5294/repo-doctor (pinned below). Settings, reports and the full run log live in the PRIVATE
+# repo Arindam5294/repo-doctor-private and are committed there only. This repo is public, so this log stays minimal on purpose.
 on:
   workflow_dispatch:
     inputs:
@@ -15,7 +15,7 @@ on:
         required: false
         default: "false"
 permissions:
-  contents: write
+  contents: read
 concurrency: { group: repo-doctor, cancel-in-progress: false }
 jobs:
   doctor:
@@ -32,15 +32,18 @@ jobs:
       LLM_ROUTER_URL: https://swanix-brain.swanixjobs.workers.dev/llm
       LLM_ROUTER_KEY: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       LLM_ROUTER_MODELS: "auto|hard,cerebras|gpt-oss-120b,nvidia|z-ai/glm-5.3-flash,mistral|mistral-medium-latest"
-      DOCTOR_CONFIG: doctor/config.json
-      DOCTOR_REPORTS_DIR: doctor/reports
-      DOCTOR_STATE_FILE: doctor/last_run.json
-      DOCTOR_OFF_FILE: doctor/OFF
-      ONLY_REPOS: ${{ github.event.inputs.repos }}
-      DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+      DOCTOR_CONFIG: .private/config.json
+      DOCTOR_REPORTS_DIR: .private/reports
+      DOCTOR_STATE_FILE: .private/last_run.json
+      DOCTOR_OFF_FILE: .private/OFF
       PYTHONUNBUFFERED: "1"
     steps:
-      - uses: actions/checkout@v4
+      - name: Get private settings
+        uses: actions/checkout@v4
+        with:
+          repository: Arindam5294/repo-doctor-private
+          token: ${{ secrets.STUDIO_GH_TOKEN }}
+          path: .private
       - name: Get the Repo Doctor engine (public repo, pinned)
         uses: actions/checkout@v4
         with:
@@ -52,17 +55,27 @@ jobs:
         with: { python-version: "3.12" }
       - uses: actions/setup-node@v4
         with: { node-version: "20" }
-      - run: pip install -q -r .repo-doctor/requirements.txt
-      - name: Check, fix and report
-        run: python .repo-doctor/repo_doctor.py
-      - name: Save today's report in this repo
+      - run: pip install -q -r .repo-doctor/requirements.txt > /dev/null 2>&1
+      - name: Check, fix and report (full log saved to the private repo)
+        run: |
+          # Inputs are read from the event file so they are never echoed into this public log.
+          export ONLY_REPOS="$(jq -r '.inputs.repos // ""' "$GITHUB_EVENT_PATH")"
+          export DRY_RUN="$(jq -r '.inputs.dry_run // "false"' "$GITHUB_EVENT_PATH")"
+          mkdir -p .private/logs
+          set +e
+          python .repo-doctor/repo_doctor.py > .private/logs/last_run.log 2>&1
+          rc=$?
+          echo "Repo Doctor finished (exit $rc). Report sent to Telegram; details are in the private repo."
+          exit $rc
+      - name: Save report in the private repo
         if: always()
+        working-directory: .private
         run: |
           git config user.name "Repo Doctor"; git config user.email "doctor@users.noreply.github.com"
           for i in 1 2 3 4 5; do
-            git add doctor/reports doctor/last_run.json 2>/dev/null || true
+            git add -A reports last_run.json logs > /dev/null 2>&1 || true
             git diff --cached --quiet && break
-            git commit -qm "Repo Doctor report $(TZ=Asia/Kolkata date +%F)" || break
-            git pull -q --rebase origin main && git push -q origin HEAD:main && break
+            git commit -qm "Repo Doctor report $(TZ=Asia/Kolkata date +%F)" > /dev/null 2>&1 || break
+            git pull -q --rebase origin main > /dev/null 2>&1 && git push -q origin HEAD:main > /dev/null 2>&1 && { echo "saved"; break; }
             sleep 5
           done
