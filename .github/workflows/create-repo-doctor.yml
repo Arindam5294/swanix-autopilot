@@ -1,0 +1,26 @@
+name: One-time - create public repo-doctor repo
+# One-shot helper (run by hand). Creates the public engine repo Arindam5294/repo-doctor and sets its topics.
+# Never changes any existing repo. Safe to delete after it has run.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.STUDIO_GH_TOKEN }}
+    steps:
+      - name: Create repo (skips if it already exists)
+        run: |
+          set -e
+          H=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+          code=$(curl -s -o /dev/null -w '%{http_code}' "${H[@]}" https://api.github.com/repos/Arindam5294/repo-doctor)
+          if [ "$code" = "200" ]; then echo "repo already exists"; else
+            curl -s -o out.json -w '%{http_code}\n' "${H[@]}" -X POST https://api.github.com/user/repos \
+              -d '{"name":"repo-doctor","private":false,"has_wiki":false,"has_projects":false,"description":"🩺 Your repos'"'"' on-call doctor: finds failing builds, writes the fix with free AI, merges only when tests pass, and texts you a plain-English report. Safe by design: no force-push, no secrets, hard caps."}'
+            python3 -c "import json;d=json.load(open('out.json'));print(d.get('html_url'),d.get('private'),d.get('message'))"
+          fi
+          curl -s -o t.json -w 'topics %{http_code}\n' "${H[@]}" -X PUT https://api.github.com/repos/Arindam5294/repo-doctor/topics \
+            -d '{"names":["github-actions","ci","devops","automation","ai","llm","self-healing","bot","telegram-bot","python","free-ai","code-repair"]}'
+          python3 -c "import json;print(json.load(open('t.json')))"
