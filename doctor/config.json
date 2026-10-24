@@ -1,7 +1,10 @@
 {
-  "_help": "Repo Doctor settings. Plain words: owner = whose repos; skip_repos = never touched; report_only_repos = checked and explained but never changed; hold_paths = folders it must not edit (until the date shown); never_edit = files/folders that deal with money, trades or wallets, never edited; never_rerun = workflows it will not start again after a fix (they post, upload or trade). To switch the doctor off: create a file doctor/OFF, or send /doctor off in Telegram.",
+  "_help": "Repo Doctor settings. Settings for the shared engine at github.com/Arindam5294/repo-doctor (the code lives there; these rules stay here). Plain words: owner = whose repos; skip_repos = never touched; report_only_repos = checked and explained but never changed; hold_paths = folders it must not edit (until the date shown); never_edit = files/folders that deal with money, trades or wallets, never edited; never_rerun = workflows it will not start again after a fix (they post, upload or trade). To switch the doctor off: create a file doctor/OFF, or send /doctor off in Telegram.",
   "owner": "Arindam5294",
-  "skip_repos": [],
+  "timezone": "Asia/Kolkata",
+  "skip_repos": [
+    "repo-doctor"
+  ],
   "report_only_repos": [
     "reset-mining",
     "dose-buddy"
@@ -77,5 +80,9 @@
   "max_lines_per_fix": 300,
   "max_fix_rounds": 2,
   "max_llm_calls": 24,
-  "time_budget_minutes": 60
+  "time_budget_minutes": 60,
+  "blocked_providers": [
+    "oxion"
+  ],
+  "report_footer": "/doctor off stops me, /doctor now runs me."
 }
