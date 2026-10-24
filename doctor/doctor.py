@@ -178,8 +178,10 @@ def ask_json(prompt):
     """Ask the free models in order; return (parsed JSON, provider)."""
     global LLM_CALLS
     prompt = redact(prompt)
-    last = "no AI keys available"
-    for name, fn in providers():
+    last, errs = "no AI keys available", []
+    for name, fn in providers() + [("wait", None)] + providers():
+        if fn is None:
+            time.sleep(60); continue
         if LLM_CALLS >= CFG["max_llm_calls"]:
             raise RuntimeError("AI call budget for this run used up")
         LLM_CALLS += 1
@@ -190,9 +192,10 @@ def ask_json(prompt):
                 last = f"{name}: no JSON in reply"; continue
             return json.loads(m.group(1)), name
         except Exception as ex:
-            last = f"{name}: {str(ex)[:160]}"
+            last = f"{name}: {str(ex)[:100]}"
+            errs.append(last)
             log("   AI", last)
-    raise RuntimeError("all free AI providers failed (" + last + ")")
+    raise RuntimeError("all free AI providers were busy or failed (" + "; ".join(errs[-5:])[:400] + ")")
 
 
 # ---------------------------------------------------------------- rules
@@ -250,6 +253,16 @@ def failing_runs(full, branch):
             r.setdefault("path", wf.get("path"))
             bad.append(r)
     return bad, n
+
+
+def main_ci_green(full, branch):
+    """True when the repo's own CI ran on the latest default-branch commit and everything passed."""
+    try:
+        sha = api("GET", f"/repos/{full}/commits/{urllib.parse.quote(branch)}")["sha"]
+        cr = api("GET", f"/repos/{full}/commits/{sha}/check-runs?per_page=50").get("check_runs", [])
+    except Exception:
+        return False
+    return bool(cr) and all(c["status"] == "completed" and c["conclusion"] in ("success", "skipped", "neutral") for c in cr)
 
 
 def run_logs(full, run):
@@ -525,6 +538,9 @@ def doctor_repo(r):
         res["notes"].append("no changes this week and nothing failing, so only a quick look")
         res["status"] = "healthy"
         return res
+    if not r.get("size"):
+        res["notes"].append("empty repo, nothing to check")
+        return res
     open_prs = [p for p in api("GET", f"/repos/{full}/pulls?state=open&per_page=50") if p["head"]["ref"].startswith("doctor/")]
     # clone
     d = WORK / name
@@ -541,6 +557,11 @@ def doctor_repo(r):
         problems.append({"check": f"GitHub Actions workflow '{run['name']}' ({run.get('path')}) failed on {run['updated_at'][:10]}",
                          "run": run, "output": run_logs(full, run)})
     res["checks"] = ran
+    env_checks = ("npm run", "install packages", "python tests", "python requirements")
+    if any(p["check"].startswith(env_checks) for p in problems) and main_ci_green(full, branch):
+        dropped = [p["check"] for p in problems if p["check"].startswith(env_checks)]
+        problems = [p for p in problems if not p["check"].startswith(env_checks)]
+        res["notes"].append("my own build/test run failed (" + ", ".join(dropped) + ") but your repo's CI passes on the latest commit, so I trust your CI and changed nothing")
     if not problems:
         res["notes"].append(f"checked: {', '.join(ran) or 'workflow runs'}; all fine")
         return res
@@ -636,6 +657,35 @@ def fix_repo(r, d, files, problems, res):
     res["cause"] = cause
     sha = pr["head"]["sha"]
     ci, info = wait_checks(full, sha)
+    rounds_used = rnd
+    while ci == "red" and rounds_used < CFG["max_fix_rounds"] and minutes_used() < CFG["time_budget_minutes"]:
+        rounds_used += 1
+        ci_logs = ""
+        for c in [x for x in info if isinstance(x, dict)][:2]:
+            try:
+                ci_logs += f"--- check '{c['name']}'\n" + run_logs(full, {"id": int(c["details_url"].split("/runs/")[1].split("/")[0]), "conclusion": "failure"})
+            except Exception:
+                pass
+        try:
+            j, via = ask_json(FIX_PROMPT.format(repo=full, problems=_problem_text(problems), tree=", ".join(files[:200]),
+                                                files=related_files(d, tracked(d), ci_logs + _problem_text(problems), wf_paths),
+                                                history="Your previous fix was pushed, but the repo's CI failed on it:\n" + ci_logs[-9000:] + "\nFix that too (edits apply on top of your previous fix).",
+                                                maxf=CFG["max_files_per_fix"], maxl=CFG["max_lines_per_fix"], protected=", ".join(CFG["never_edit"])))
+        except Exception:
+            break
+        if not j.get("fixable") or not j.get("edits"):
+            break
+        more, err = apply_edits(name, d, j["edits"])
+        if not more:
+            git(d, "reset", "-q", "--hard"); break
+        git(d, "commit", "-q", "-m", f"Repo Doctor: follow-up fix for CI (round {rounds_used}, via {via})")
+        rc, out = git(d, "push", "-q", "origin", f"HEAD:refs/heads/{newbranch}")
+        if rc:
+            break
+        summary = (summary + " Then: " + (j.get("change_summary") or "")).strip()
+        res["change"] = summary
+        rc, sha = git(d, "rev-parse", "HEAD"); sha = sha.strip()
+        ci, info = wait_checks(full, sha)
     green = ci == "green" or (ci == "none" and res.get("local_ok", False))
     if not green:
         why = ("the repo's own checks failed on my fix" if ci == "red" else "my own re-check still failed")
