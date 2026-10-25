@@ -1,29 +1,5 @@
 [
  {
-  "time": "2026-10-22 04:30 UTC",
-  "height": 972567,
-  "anonymitySet": 3206,
-  "lag": 0,
-  "notes": 8503,
-  "nullifiers": 5297,
-  "root": "19354458144255453405234036212049655703337462977034023998802556147645428266305",
-  "passed": 9,
-  "total": 9,
-  "checks": {
-   "commitmentsUnique": true,
-   "positionsContiguous": true,
-   "heightsMonotonic": true,
-   "rootMatchesNotes": true,
-   "noDupListingNullifiers": true,
-   "soldClaimedSpent": true,
-   "mintInRange": true,
-   "soldHaveTxid": true,
-   "claimedHaveTxid": true
-  },
-  "sha256": "4289bd53b3ce638ba375deacf30cfe9b38ccca0562af8a90ed1d7e52b391cf92",
-  "anomalies": []
- },
- {
   "time": "2026-10-22 05:00 UTC",
   "height": 972569,
   "anonymitySet": 3210,
@@ -5758,5 +5734,31 @@
   },
   "sha256": "ebaf994fbea6a40599c230c5213bc0c1843a867c362db8376854eab889b05c9c",
   "anomalies": []
+ },
+ {
+  "time": "2026-10-25 14:45 UTC",
+  "height": 973037,
+  "anonymitySet": 3268,
+  "lag": 46,
+  "notes": 8674,
+  "nullifiers": 5406,
+  "root": "7237910031639884040951240871104671672992050652769867102036721048962888343861",
+  "passed": 9,
+  "total": 9,
+  "checks": {
+   "commitmentsUnique": true,
+   "positionsContiguous": true,
+   "heightsMonotonic": true,
+   "rootMatchesNotes": true,
+   "noDupListingNullifiers": true,
+   "soldClaimedSpent": true,
+   "mintInRange": true,
+   "soldHaveTxid": true,
+   "claimedHaveTxid": true
+  },
+  "sha256": "d91036a850ee399c38b0b7495bef16b224bb4f97c0a2a2683b2a367fdaf59e27",
+  "anomalies": [
+   "Indexer 46 blocks behind tip"
+  ]
  }
 ]
