@@ -13,7 +13,9 @@ concurrency: { group: botbeat, cancel-in-progress: false }
 jobs:
   short:
     if: ${{ github.event_name != 'schedule' || vars.BOTBEAT_GH_CRON == 'true' }}
-    runs-on: ubuntu-latest
+    # Set repo variable BOTBEAT_RUNNER=self-hosted once a runner on your home PC (Linux + Docker) is online:
+    # home internet is not bot-blocked by YouTube, so real footage downloads every time.
+    runs-on: ${{ vars.BOTBEAT_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 45
     services:
       pot:   # free YouTube "proof of origin" token helper for yt-dlp
@@ -27,9 +29,10 @@ jobs:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      YTDLP_HOME_PROXY: ${{ secrets.YTDLP_HOME_PROXY }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core && pip install -q -U yt-dlp bgutil-ytdlp-pot-provider edge-tts gtts pillow
       - name: Optional cookies (only if YouTube/X block downloads)
@@ -62,17 +65,26 @@ jobs:
           sleep 8
           if curl -s --max-time 15 -x socks5h://127.0.0.1:40000 https://www.cloudflare.com/cdn-cgi/trace | grep -q "warp=on"; then echo "YTDLP_PROXY=socks5://127.0.0.1:40000" >> "$GITHUB_ENV"; echo "WARP on"; fi
       - name: Make the Short
+        id: make
         if: steps.pick.outputs.clip != ''
         env: { CLIP: "${{ steps.pick.outputs.clip }}" }
         run: |
-          if ! python make_short.py "$CLIP" 2> err.txt; then
-            cat err.txt
-            if grep -q "not a bot" err.txt; then MSG="Botbeat: YouTube blocked every download route today. It retries at the next run automatically."; else MSG="Botbeat failed: $(tail -c 300 err.txt)"; fi
-            python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "$MSG" || true
-            exit 1
+          set +e
+          python make_short.py "$CLIP" 2> err.txt; RC=$?
+          set -e
+          cat err.txt
+          if [ $RC -eq 0 ]; then echo "made=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "made=false" >> "$GITHUB_OUTPUT"
+          if [ $RC -eq 3 ]; then
+            # YouTube bot wall: no low-quality substitute is made. The clip stays unused and is retried next run.
+            python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "Botbeat: YouTube blocked the download from GitHub's servers, so no Short was made this run (clip kept for the next run). Permanent fix: YT_COOKIES, YTDLP_HOME_PROXY, or BOTBEAT_RUNNER=self-hosted." || true
+            echo "::warning::YouTube bot wall: skipped this run, clip retried next run"
+            exit 0
           fi
+          python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "Botbeat failed: $(tail -c 300 err.txt)" || true
+          exit 1
       - name: Upload to YouTube (API, then scheduled, then browser)
-        if: steps.pick.outputs.clip != ''
+        if: steps.make.outputs.made == 'true'
         continue-on-error: true
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
@@ -81,14 +93,14 @@ jobs:
         run: |
           if [ -f cookies.txt ]; then pip install -q playwright && python -m playwright install --with-deps chromium > /dev/null 2>&1 || true; fi
           python upload_youtube.py && echo uploaded || echo "all routes failed, Telegram gets the file"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always() && hashFiles('botbeat/out/upload_error.png') != ''
         with: { name: upload-error-screenshot, path: botbeat/out/upload_error.png, retention-days: 7 }
       - name: Send it to you
-        if: steps.pick.outputs.clip != ''
+        if: steps.make.outputs.made == 'true'
         run: python send_short.py
-      - uses: actions/upload-artifact@v4
-        if: steps.pick.outputs.clip != ''
+      - uses: actions/upload-artifact@v5
+        if: steps.make.outputs.made == 'true'
         with: { name: botbeat-short, path: botbeat/out/, retention-days: 7 }
       - name: Remember used clips
         if: always()
