@@ -34,18 +34,27 @@ def trim(p):
         print("trim skipped:", e, file=sys.stderr)
 
 def download(url):
-    """Try several YouTube clients, first direct, then through the free Cloudflare WARP proxy if the workflow set one up."""
+    """Try several YouTube clients, first direct, then through the free Cloudflare WARP proxy if the workflow set one up.
+    YouTube now demands a signed-in session for datacenter IPs (GitHub runners), so authenticated cookies (the
+    YT_COOKIES secret -> cookies.txt) are required. The local PO-token provider (pot service on :4416) is used
+    when cookies are present to pass the bot check."""
     dst = WORK / "src.mp4"
     if os.path.exists(url): shutil.copy(url, dst); return dst
     base = ["yt-dlp", "-q", "--no-playlist", "-f", "bv*[height<=1080]+ba/b[height<=1080]/b", "--merge-output-format", "mp4",
             "--hls-prefer-native", "--concurrent-fragments", "4", "-o", str(dst)]
     # No --download-sections: it hands the download to ffmpeg, which can't use the WARP SOCKS proxy (ffmpeg exit 8).
     # yt-dlp downloads natively (proxy works), then we trim locally.
-    if os.path.exists("cookies.txt"): base += ["--cookies", "cookies.txt"]
+    has_cookies = os.path.exists("cookies.txt")
+    if has_cookies: base += ["--cookies", "cookies.txt"]
+    # With a signed-in session, prefer the web player that mints a PO token via the local provider (port 4416).
+    attempts = ATTEMPTS[:]
+    if has_cookies:
+        attempts.insert(0, ["--extractor-args", "youtube:player_client=web",
+                            "--extractor-args", "youtube:po_token=bgutil:http+web"])
     proxies = [None] + ([os.environ["YTDLP_PROXY"]] if os.environ.get("YTDLP_PROXY") else [])
     last = None
     for px in proxies:
-        for extra in ATTEMPTS:
+        for extra in attempts:
             cmd = base + extra + (["--proxy", px] if px else []) + [url]
             try:
                 for f in WORK.glob("src.*"): f.unlink()
@@ -57,7 +66,15 @@ def download(url):
                 err = str(e)
                 if "[Piracy]" in err or "primarily used for piracy" in err.lower():
                     raise RuntimeError(f"yt-dlp blocked this domain (piracy list): {url}") from e
-                last = e; print("download attempt failed:", px or "direct", extra or "default", file=sys.stderr)
+                if "not a bot" in err or "LOGIN_REQUIRED" in err or "Sign in" in err:
+                    last = RuntimeError(
+                        "YouTube blocked this download (Sign in to confirm you’re not a bot) because the "
+                        "GitHub runner looks like a robot. Fix: export cookies from a logged-in Chrome via the "
+                        "'Get cookies.txt LOCALLY' extension and set them as the Actions secret YT_COOKIES "
+                        "(or commit them as botbeat/cookies.txt), then re-run this workflow. No code change needed.")
+                else:
+                    last = e
+                print("download attempt failed:", px or "direct", extra or "default", file=sys.stderr)
     raise last or RuntimeError("download failed")
 
 def duration(p):
