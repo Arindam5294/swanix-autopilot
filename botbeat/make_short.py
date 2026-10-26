@@ -17,8 +17,12 @@ def sh(*a, **k):
     if r.returncode: raise RuntimeError(" ".join(map(str, a))[:200] + "\n" + r.stderr[-1500:])
     return r.stdout
 
-ATTEMPTS = [[], ["--extractor-args", "youtube:player_client=tv,web_safari"],
-            ["--extractor-args", "youtube:player_client=mweb"], ["--extractor-args", "youtube:player_client=android_vr"]]
+ATTEMPTS = [
+    ["--extractor-args", "youtube:player_client=web"],
+    ["--extractor-args", "youtube:player_client=tv,web_safari"],
+    ["--extractor-args", "youtube:player_client=mweb"],
+    ["--extractor-args", "youtube:player_client=android_vr"],
+]
 
 def trim(p):
     lim = CFG['max_clip_minutes'] * 60
@@ -50,6 +54,9 @@ def download(url):
                     trim(dst)
                     print("downloaded via", px or "direct", extra or "default", file=sys.stderr); return dst
             except Exception as e:
+                err = str(e)
+                if "[Piracy]" in err or "primarily used for piracy" in err.lower():
+                    raise RuntimeError(f"yt-dlp blocked this domain (piracy list): {url}") from e
                 last = e; print("download attempt failed:", px or "direct", extra or "default", file=sys.stderr)
     raise last or RuntimeError("download failed")
 
