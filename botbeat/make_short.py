@@ -17,11 +17,17 @@ def sh(*a, **k):
     if r.returncode: raise RuntimeError(" ".join(map(str, a))[:200] + "\n" + r.stderr[-1500:])
     return r.stdout
 
+# Order matters: YouTube returns HTTP 403 for anonymous datacenter IPs unless the player
+# client is one it allows without a PO token. We verified on a fresh GH-style runner that
+# `android` and `android_vr` download cleanly with no JS/PO setup; `web`/`mweb`/`ios`
+# demand a GVS PO token and fail with 403. So try the working ones FIRST.
 ATTEMPTS = [
-    ["--extractor-args", "youtube:player_client=web"],
-    ["--extractor-args", "youtube:player_client=tv,web_safari"],
-    ["--extractor-args", "youtube:player_client=mweb"],
+    ["--extractor-args", "youtube:player_client=android"],
     ["--extractor-args", "youtube:player_client=android_vr"],
+    ["--extractor-args", "youtube:player_client=tv"],
+    ["--extractor-args", "youtube:player_client=web"],
+    ["--extractor-args", "youtube:player_client=mweb"],
+    ["--extractor-args", "youtube:player_client=ios"],
 ]
 
 def trim(p):
