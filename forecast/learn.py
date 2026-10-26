@@ -44,6 +44,11 @@ def summary(card):
              f"Rolling last {card['window']} resolved: {card['wins']}W / {card['losses']}L / {card['expired']} expired · hit {hr} · expectancy {ex}",
              f"Open calls: {card['open_calls']} · resolved all-time: {card['resolved_total']} · sides {card['sides_resolved']}",
              f"Gate: {'OPEN' if card['gate_open'] else 'closed'} ({card['gate_reason']}) · shadow flag: {'on' if card['shadow_flag'] else 'off'}"]
+    bp = card.get("blocked_paper") or {}
+    if bp.get("resolved"):
+        lines.append(f"Blocked setups graded on paper: {bp['wins']}/{bp['resolved']} would have hit TP1 · expectancy {bp['expectancy_r']:+.2f}R")
+        for why, d in bp["by_guard"].items():
+            lines.append(f"  {why}: {d['win']}W {d['loss']}L {d['expired']}E ({d['sum_r']:+.2f}R)")
     for sym, d in sorted(card["coins"].items()):
         lines.append(f"  {sym}: {d['win']}W {d['loss']}L {d['expired']}E")
     return "\n".join(lines)

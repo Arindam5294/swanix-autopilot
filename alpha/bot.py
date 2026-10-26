@@ -103,19 +103,36 @@ def new_projects(state):
         print("llama failed", e)
     return items
 
-def trending(state):
-    """CoinGecko trending coins: post only coins newly entering the list."""
-    items = []
+TRENDING_EVERY_H = float(os.environ.get("TRENDING_EVERY_H", "6"))
+
+def trending_digest(state):
+    """CoinGecko trending coins as ONE digest every TRENDING_EVERY_H hours (default 6), instead of a post per coin
+    every 15 minutes (changed 2026-10-26: same info, far less noise)."""
+    if time.time() - state.get("trending_last", 0) < TRENDING_EVERY_H * 3600 - 300:
+        return None
     try:
         data = json.loads(get("https://api.coingecko.com/api/v3/search/trending"))
-        for c in data.get("coins", [])[:15]:
-            i = c["item"]
-            key = "cg:" + i["id"] + ":" + time.strftime("%Y-%m-%d")
-            title = f"Trending: {i['name']} (${i['symbol'].upper()}) · rank #{i.get('market_cap_rank') or '?'}"
-            items.append(("🔥", "CoinGecko", title, f"https://www.coingecko.com/en/coins/{i['id']}", key))
     except Exception as e:
         print("coingecko failed", e)
-    return items
+        return None
+    rows = []
+    for n, c in enumerate(data.get("coins", [])[:10], 1):
+        i = c["item"]; d = i.get("data") or {}
+        price = d.get("price")
+        try:
+            price = f"${float(price):,.4f}" if float(price) < 1 else f"${float(price):,.2f}"
+        except Exception:
+            price = "?"
+        chg = (d.get("price_change_percentage_24h") or {}).get("usd")
+        chg = f" ({chg:+.1f}% 24h)" if isinstance(chg, (int, float)) else ""
+        url = f"https://www.coingecko.com/en/coins/{i['id']}"
+        rows.append(f"{n}. <a href=\"{html.escape(url)}\">{html.escape(i['name'])}</a> ${html.escape(i['symbol'].upper())} · "
+                    f"{price}{chg} · rank #{i.get('market_cap_rank') or '?'}")
+    if not rows:
+        return None
+    state["trending_last"] = time.time()
+    return ("🔥 <b>Trending coins right now</b> (CoinGecko, every 6h)\n\n" + "\n".join(rows) +
+            "\n\n#SwanixAlpha · Stay Orange 🧡")
 
 def send(text, preview_url=None):
     if DRY_RUN:
@@ -133,7 +150,7 @@ def main():
     state = load_state()
     seen = set(state["seen"])
     first = state.pop("first_run", False)
-    candidates = new_projects(state) + news_items() + trending(state)
+    candidates = new_projects(state) + news_items()
     posted = 0
     for it in candidates:
         emoji, src, title, link = it[:4]
@@ -149,6 +166,15 @@ def main():
             send(msg); posted += 1
         except Exception as e:
             print("send failed", e)
+    # trending coins: one digest every 6 hours
+    digest = trending_digest(state)
+    if digest and first:
+        digest = None   # first run only records history
+    if digest:
+        try:
+            send(digest)
+        except Exception as e:
+            print("trending digest failed", e)
     # ord.net Ordinals market digest, twice a day (9:00 and 21:00 IST)
     if os.environ.get("ORDNET", "1") == "1":
         slot, key = ordnet.due_slot(state)

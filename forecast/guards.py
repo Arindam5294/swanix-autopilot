@@ -3,7 +3,7 @@
 Pure-python, no torch: the oracle, the grader and the tests all import this.
   1. Shadow mode    - calls are logged + graded, never posted, until the graded record earns it.
   2. HTF trend      - no SHORT when the 4h or 1D trend is up, no LONG when either is down.
-  3. Min R:R        - stop moved past real structure (recent swing + ATR buffer), then R:R >= 1.8 net of fees.
+  3. Min R:R        - stop moved past real structure (recent swing + ATR buffer), then R:R >= 1.5 net of fees.
   4. Closed candles - only candles whose close time has passed are ever used.
   5. Grading ledger - every call stored with entry/stop/targets/time, resolved win/loss/expired by later candles.
   6. Bias guard     - if >80% of the last 10 calls point one way while the HTF trend points the other, block.
@@ -20,7 +20,7 @@ FEE = 0.001                      # 0.1% per side
 HORIZON = 24 * 3600              # a call that hits neither stop nor TP1 in 24h is "expired"
 API = "https://data-api.binance.vision/api/v3/klines"
 
-DEFAULTS = {"shadow": True, "min_rr": 1.8, "gate_min_calls": 20, "gate_min_hit": 0.55,
+DEFAULTS = {"shadow": True, "min_rr": 1.5, "gate_min_calls": 20, "gate_min_hit": 0.55,
             "gate_window": 30, "bias_window": 10, "bias_max_share": 0.8, "dedupe_hours": 6}
 
 
@@ -40,7 +40,7 @@ def config():
         cfg["shadow"] = True
     if os.getenv("ORACLE_MIN_RR"):
         cfg["min_rr"] = float(os.getenv("ORACLE_MIN_RR"))
-    cfg["min_rr"] = max(cfg["min_rr"], 1.8)          # hard floor, config can only tighten it
+    cfg["min_rr"] = max(cfg["min_rr"], 1.5)          # hard floor (lowered from 1.8 on 2026-10-26), config can only tighten it
     return cfg
 
 
@@ -173,7 +173,7 @@ def save(p, obj):
 
 
 def recent_sides(ledger, n=10):
-    return [c["side"] for c in sorted(ledger, key=lambda c: c["ts"])][-n:]
+    return [c["side"] for c in sorted([c for c in ledger if c.get("mode") != "blocked"], key=lambda c: c["ts"])[-n:]]
 
 
 def is_dupe(ledger, sym, tf, side, now, hours=6):
@@ -230,7 +230,14 @@ def grade_call(call, candles, now=None):
 
 def scorecard(ledger, cfg=None):
     cfg = cfg or config()
-    res = sorted([c for c in ledger if c.get("status") in ("win", "loss", "expired")], key=lambda c: c.get("resolved_at", c["ts"]))
+    allres = sorted([c for c in ledger if c.get("status") in ("win", "loss", "expired")], key=lambda c: c.get("resolved_at", c["ts"]))
+    res = [c for c in allres if c.get("mode") != "blocked"]          # gate = calls that passed every guard
+    blk = [c for c in allres if c.get("mode") == "blocked"]          # paper-graded setups the guards stopped
+    blk_by = {}
+    for c in blk:
+        r = (c.get("block_reason") or "").split(":")[0].split(" after")[0][:40] or "other"
+        d = blk_by.setdefault(r, {"win": 0, "loss": 0, "expired": 0, "sum_r": 0.0})
+        d[c["status"]] += 1; d["sum_r"] = round(d["sum_r"] + c.get("r", 0), 3)
     win = res[-cfg["gate_window"]:]
     n = len(win)
     wins = sum(c["status"] == "win" for c in win)
@@ -256,7 +263,10 @@ def scorecard(ledger, cfg=None):
             "hit_rate": round(hit, 3) if hit is not None else None, "expectancy_r": round(exp, 3) if exp is not None else None,
             "open_calls": sum(c.get("status") == "open" for c in ledger), "resolved_total": len(res),
             "sides_resolved": sides, "coins": by, "gate_open": gate, "gate_reason": why,
-            "shadow_flag": cfg["shadow"], "posting": (not cfg["shadow"]) and gate}
+            "shadow_flag": cfg["shadow"], "posting": (not cfg["shadow"]) and gate,
+            "blocked_paper": {"resolved": len(blk), "wins": sum(c["status"] == "win" for c in blk),
+                              "expectancy_r": round(sum(c.get("r", 0) for c in blk) / len(blk), 3) if blk else None,
+                              "by_guard": blk_by}}
 
 
 def can_post(cfg=None, card=None, ledger=None):

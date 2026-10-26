@@ -333,6 +333,12 @@ def main():
                     warns.append(rw)
                 if plan is None and SCAN:
                     print(sym, "no setup:", rw); continue
+            # model-quality filters first (scan only), so the paper ledger only holds real candidates
+            bt_ok = bool(bt and bt["trades"] >= 4 and bt["hits"] / bt["trades"] >= 0.66 and bt["pnl"] > 0)   # proven on enough history
+            if SCAN and not bt_ok:
+                print(sym, "no setup: backtest too thin or weak", bt); continue
+            if SCAN and not (plan and score >= SCAN_MIN and not any("skip" in w.lower() or "lost money" in w for w in warns)):
+                print(sym, "no setup:", call, score); continue
             if plan:
                 gplan, why, htf = apply_guards(sym, plan, hist, score, cfg, ledger)
                 if gplan is None:
@@ -342,6 +348,14 @@ def main():
                     warns.append(why)
                     call = "NO TRADE (blocked by guard)"
                     if SCAN:
+                        # paper-grade the blocked setup too (mode "blocked"): never posted, never counts toward the gate,
+                        # but shows whether each guard is saving money or just killing winners (2026-10-26 deadlock fix)
+                        if not G.is_dupe(ledger, sym, tf, plan["side"], time.time(), cfg["dedupe_hours"]):
+                            ledger.append(G.new_call(sym, tf, plan["side"], plan["entry"], plan["sl"], plan["tp1"], plan["tp2"],
+                                                     int(df["timestamps"].iloc[-1].value // 10**6), "blocked",
+                                                     extra={"confidence": score, "block_reason": why,
+                                                            "htf": {k: v.get("trend") for k, v in (htf or {}).items()}}))
+                            G.save(G.LEDGER_F, ledger)
                         continue
                 plan = gplan
             if plan and not POST:
@@ -357,11 +371,6 @@ def main():
                 line += f"\n• Invalid if a 1h candle closes {'below' if plan['side'] == 'LONG' else 'above'} {fmt(plan['sl'])}"
             if warns:
                 line += "\n⚠️ " + "\n⚠️ ".join(warns)
-            bt_ok = bool(bt and bt["trades"] >= 4 and bt["hits"] / bt["trades"] >= 0.66 and bt["pnl"] > 0)   # proven on enough history
-            if SCAN and not bt_ok:
-                print(sym, "no setup: backtest too thin or weak", bt); continue
-            if SCAN and not (plan and score >= SCAN_MIN and not any("skip" in w.lower() or "lost money" in w for w in warns)):
-                print(sym, "no setup:", call, score); continue
             if plan and SCAN:   # every scan call that survives the guards goes into the grading ledger (shadow or live)
                 if not G.is_dupe(ledger, sym, tf, plan["side"], time.time(), cfg["dedupe_hours"]):
                     ledger.append(G.new_call(sym, tf, plan["side"], plan["entry"], plan["sl"], plan["tp1"], plan["tp2"],
@@ -398,6 +407,12 @@ def main():
     if SCAN and not POST:
         (ROOT / "latest.json").write_text(json.dumps({"at": now, "pairs": report}, indent=1))
         print("SHADOW MODE: setups logged to calls.json for grading, nothing written to alerts.json (not posted).")
+        # paper setups that passed every guard go to the owner's DM only (TELEGRAM_CHAT_ID), never the public channel
+        try:
+            from notify import telegram
+            telegram(text.replace("Swanix Trade Alert", "Swanix PAPER Setup").replace("🚨 TRADE SETUP", "📝 PAPER SETUP (graded, not a signal)"))
+        except Exception as e:
+            print("paper DM failed:", e)
         print(text)
         return
     if SCAN:

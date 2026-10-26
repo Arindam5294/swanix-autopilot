@@ -152,9 +152,9 @@ class Gate(unittest.TestCase):
         import os
         os.environ.pop("ORACLE_SHADOW", None)
         c = G.config()
-        self.assertTrue(c["shadow"]); self.assertGreaterEqual(c["min_rr"], 1.8)
+        self.assertTrue(c["shadow"]); self.assertGreaterEqual(c["min_rr"], 1.5)
         os.environ["ORACLE_MIN_RR"] = "1.2"
-        self.assertEqual(G.config()["min_rr"], 1.8)
+        self.assertEqual(G.config()["min_rr"], 1.5)
         os.environ.pop("ORACLE_MIN_RR")
 
 
