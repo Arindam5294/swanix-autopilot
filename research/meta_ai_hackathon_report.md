@@ -3,7 +3,7 @@
 **Source:** https://cerebralvalley.ai/e/meta-ai-developer-hackathon?utm_source=event-blast&utm_medium=email  
 **Official Rules/Waiver:** https://cerebralvalley.ai/e/meta-ai-developer-hackathon/waiver  
 **Research Date:** 2026-10-26 13:34 IST  
-**Current Status:** Applications closed (deadline was Oct 25, 11:59 PM ET), Hackathon begins today at 6:30 PM IST
+**Status:** ✅ **APPROVED** (confirmed by Swanix) — Applications were closed (Oct 25), approval granted on Oct 26
 
 ---
 
@@ -13,12 +13,12 @@
 |-------|---------------|-----------------|--------|
 | Applications Open | Oct 13, 9:00 AM ET | Oct 13, 6:30 PM IST | ✅ PASSED |
 | Applications Deadline | Oct 25, 11:59 PM ET | Oct 26, 9:29 AM IST | ✅ CLOSED |
-| Applicant Approval Notifications | By Oct 26, 9:00 AM ET | By Oct 26, 6:30 PM IST | 🔄 IN PROGRESS |
-| **Hackathon Kickoff (Livestream)** | **Oct 26, 9:00 AM ET** | **Oct 26, 6:30 PM IST** | **⏳ TODAY - ~5 HOURS** |
+| Applicant Approval Notifications | By Oct 26, 9:00 AM ET | By Oct 26, 6:30 PM IST | ✅ **APPROVED** |
+| **Hackathon Kickoff (Livestream)** | **Oct 26, 9:00 AM ET** | **Oct 26, 6:30 PM IST** | **⏳ TODAY** |
 | Live Workshops & Office Hours | Oct 27 – Nov 4 | Oct 28 – Nov 5 | 📅 UPCOMING |
-| **Project Submissions Due** | **Nov 4, 9:00 PM ET** | **Nov 5, 7:30 AM IST** | **⏳ 9 DAYS 18 HOURS** |
+| **Project Submissions Due** | **Nov 4, 9:00 PM ET** | **Nov 5, 7:30 AM IST** | **⏳ ~9 DAYS** |
 | Judging Period | Nov 4 – Nov 8 | Nov 5 – Nov 9 | 📅 UPCOMING |
-| **Closing Ceremony / Winners Announced** | **Nov 9** | **Nov 10, ~7:30 AM IST** | **📅 15 DAYS** |
+| **Closing Ceremony / Winners Announced** | **Nov 9** | **Nov 10, ~7:30 AM IST** | **📅 ~15 DAYS** |
 
 > **Note:** US switches from EDT to EST on Nov 2, 2026. Times above account for this transition.
 
@@ -36,7 +36,6 @@
 - **For:** Teams and founders building a real product
 - **Team size:** Not explicitly limited (startup team)
 - **Representative:** Must be active employee of startup, authorized to receive notices/prize
-- **Judging criteria:** Technical execution, production readiness
 - **Total prize pool:** $550,000
 
 ### Project Themes (apply to both tracks)
@@ -178,30 +177,52 @@ Participants get access to:
 
 ---
 
-## ⏰ KEY REMINDERS & COUNTDOWNS (as of 2026-10-26 13:34 IST)
+## ✅ APPROVAL STATUS (UPDATED 2026-10-26)
 
-### 🔴 IMMEDIATE (Today)
-- **Hackathon Kickoff Livestream:** **~4 hours 56 minutes** (6:30 PM IST today)
-- **Applicant approval notifications:** Should arrive by 6:30 PM IST today
+- **Status:** ✅ **APPROVED**
+- **Confirmed:** Swanix confirmed approval on Oct 26 (despite the closed application deadline)
+- **Action items unlocked by approval:**
+  1. Receive $150 Meta Model API credits (10-day window)
+  2. Partner credits: Baseten $100, Modal $100, Fireworks $25
+  3. Full access to Meta AI tooling (Muse Spark, Muse Wonder, Muse Image, SAM 3.1, Muse Code)
+  4. Eligibility to submit to the Cerebral Valley portal by Nov 5
 
-### 🟡 THIS WEEK
-- **Live workshops begin:** Tomorrow (Oct 27 / Oct 28 IST)
-- **Discord office hours:** Daily through Nov 4
+---
 
-### 🟢 SUBMISSION DEADLINE
-- **Project submissions due:** **9 days 18 hours** (Nov 5, 7:30 AM IST)
-- **Recommended internal deadline:** Nov 3 (2 days buffer) = **7 days from now**
+## 🎯 ACTION PLAN (APPROVED)
 
-### 🔵 POST-SUBMISSION
-- **Judging period:** Nov 5 – Nov 9 (IST)
-- **Winners announced:** **15 days** (Nov 10, ~7:30 AM IST)
-- **Bonus prizes announced:** On or about Nov 10, 2026
+### Phase 0 — Today (Oct 26)
+- [ ] Attend kickoff livestream at **6:30 PM IST** (report what's announced)
+- [ ] Verify approval email + credit codes arrived
+- [ ] Finalize project concept + track (Indie vs Startup)
+- [ ] Decide team (solo or up to 4 for Indie) + name Representative
 
-### Suggested Reminder Schedule for Swanix
+### Phase 1 — Concept & Setup (Oct 26–27)
+- [ ] Lock project idea + theme (Build for Your World / Push the Frontier)
+- [ ] Map which Meta tools the idea will use (Muse Spark / Wonder / Image / SAM 3.1 / Muse Code)
+- [ ] Set up GitHub repo, env keys, and credit activation
+- [ ] Choose stack (Python, FastAPI, modal, etc.)
+
+### Phase 2 — Build (Oct 28–Nov 2)
+- [ ] MVP core feature working
+- [ ] Integrate Meta AI tooling (creative use = 25% of score)
+- [ ] Add polish: UX, robustness, high impact framing
+
+### Phase 3 — Demo & Submit (Nov 3–4)
+- [ ] Record demo video (25% of score) — quality matters
+- [ ] Write submission copy: impact story, technical depth
+- [ ] Submit via Cerebral Valley portal **by Nov 5, 7:30 AM IST** (internal target: Nov 3)
+
+### Phase 4 — Post-submission (Nov 5–10)
+- [ ] Judging (Nov 5–9)
+- [ ] Closing ceremony / winners Nov 10 ~7:30 AM IST
+
+### Suggested Reminder Schedule
 ```
 [ ] TODAY 6:30 PM IST - Attend kickoff livestream
-[ ] TODAY - Check approval notification email
-[ ] Oct 28 - Join first workshops / Discord
+[ ] TODAY - Confirm credits received
+[ ] Oct 27 - Lock project concept + track + team
+[ ] Oct 28 - Join first workshops / Discord (use Meta tooling)
 [ ] Nov 1 - Project halfway check (5 days left)
 [ ] Nov 3 - Internal submission deadline (2 days buffer)
 [ ] Nov 5 7:30 AM IST - FINAL SUBMISSION DEADLINE
@@ -212,20 +233,13 @@ Participants get access to:
 
 ## ⚠️ CRITICAL NOTES FOR SWANIX
 
-1. **Applications are CLOSED** - deadline was Oct 25, 11:59 PM ET (Oct 26, 9:29 AM IST). If you didn't apply, you cannot participate this round.
-
-2. **If you applied:** Check email for approval notification by **6:30 PM IST today**. Approved participants get $150 Meta Model API credits.
-
-3. **Team formation:** If approved for Indie track, you can form team up to 4. Need to designate Representative.
-
+1. ✅ **APPROVED** - You are in. Applications are closed to new entrants, but you have approval.
+2. **Credits:** Confirm $150 Meta Model API + partner credits landed. 10-day dev window starts at kickoff.
+3. **Team formation:** Indie track = up to 4 members. Need to designate a Representative.
 4. **Submission is via Cerebral Valley portal** - not GitHub, not Devpost. URL: `https://cerebralvalley.ai/e/meta-ai-developer-hackathon/hackathon/submit`
-
-5. **Official Rules published before Oct 26** - must be accepted by selected participants.
-
+5. **Official Rules** must be accepted by selected participants.
 6. **Prizes paid in USD** - winner verification required, Representative handles team allocation.
-
 7. **No confidentiality** - Materials shared during hackathon are not confidential, Organizers get royalty-free worldwide license.
-
 8. **Governing law:** California, venue San Francisco courts.
 
 ---
@@ -235,6 +249,7 @@ Participants get access to:
 | Metric | Value |
 |--------|-------|
 | Event Name | Meta Global AI Developer Hackathon |
+| Status | ✅ APPROVED |
 | Duration | 10 days (Oct 26 – Nov 4 ET) |
 | Format | Virtual, worldwide |
 | Max Participants | 20,000 selected applicants |
@@ -244,9 +259,8 @@ Participants get access to:
 | Partner Credits | Baseten $100, Modal $100, Fireworks $25 |
 | Submission Deadline | Nov 5, 7:30 AM IST |
 | Winners Announced | Nov 10, ~7:30 AM IST |
-| Time Until Submission | **9 days 18 hours** |
 
 ---
 
-*Report generated by Swanix Brain on 2026-10-26 13:34 IST*  
+*Report updated by Swanix Brain on 2026-10-26 17:2x IST (approval confirmed)*  
 *Data sourced from Cerebral Valley event page and official waiver/rules page*
