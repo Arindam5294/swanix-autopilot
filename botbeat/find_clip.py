@@ -9,6 +9,11 @@ USED_F = HERE / "used.json"
 USED = set(json.loads(USED_F.read_text())) if USED_F.exists() else set()
 URL_RE = re.compile(r"https?://\S+")
 
+YT_DOMAINS = ("youtube.com", "youtu.be", "youtube-nocookie.com")
+
+def is_youtube(url: str) -> bool:
+    return any(d in url for d in YT_DOMAINS)
+
 def bad(text):
     t = text.lower()
     return any(w in t for w in CFG["banned_words"])
@@ -83,6 +88,9 @@ def main():
     manual = queue_links()                   # links you send the bot land here (studio/run.py queues them)
     for url in manual:                       # links you chose yourself skip the view bar
         if url in USED: continue
+        if not is_youtube(url):
+            print(f"find_clip: skipping non-YouTube URL: {url}", file=sys.stderr)
+            continue
         m = meta(url) or {"url": url, "title": "", "desc": "", "views": 0, "uploader": ""}
         m["source"] = "manual"; print(json.dumps(m)); return
     pool = [m for m in youtube_search()
