@@ -17,17 +17,16 @@ def sh(*a, **k):
     if r.returncode: raise RuntimeError(" ".join(map(str, a))[:200] + "\n" + r.stderr[-1500:])
     return r.stdout
 
-# Order matters: YouTube returns HTTP 403 for anonymous datacenter IPs unless the player
-# client is one it allows without a PO token. We verified on a fresh GH-style runner that
-# `android` and `android_vr` download cleanly with no JS/PO setup; `web`/`mweb`/`ios`
-# demand a GVS PO token and fail with 403. So try the working ones FIRST.
+# Restored to the exact order that made every Short up to Oct 25 2026 (runs #33-#40 all green):
+# [] = yt-dlp's own default clients, which use deno + the bgutil PO-token service (:4416) automatically.
+# The Oct 26 edit that forced android/android_vr/ios first removed this default and every run failed after it.
+# Extra clients stay as late fallbacks only.
 ATTEMPTS = [
-    ["--extractor-args", "youtube:player_client=android"],
-    ["--extractor-args", "youtube:player_client=android_vr"],
-    ["--extractor-args", "youtube:player_client=tv"],
-    ["--extractor-args", "youtube:player_client=web"],
+    [],
+    ["--extractor-args", "youtube:player_client=tv,web_safari"],
     ["--extractor-args", "youtube:player_client=mweb"],
-    ["--extractor-args", "youtube:player_client=ios"],
+    ["--extractor-args", "youtube:player_client=android_vr"],
+    ["--extractor-args", "youtube:player_client=android"],
 ]
 
 def trim(p):
@@ -54,10 +53,11 @@ def download(url):
     if has_cookies: base += ["--cookies", "cookies.txt"]
     # With a signed-in session, prefer the web player that mints a PO token via the local provider (port 4416).
     attempts = ATTEMPTS[:]
-    if has_cookies:
-        attempts.insert(0, ["--extractor-args", "youtube:player_client=web",
-                            "--extractor-args", "youtube:po_token=bgutil:http+web"])
-    proxies = [None] + ([os.environ["YTDLP_PROXY"]] if os.environ.get("YTDLP_PROXY") else [])
+    # (Oct 26 cookie-only web/po_token override removed: invalid po_token syntax; default clients already use bgutil.)
+    # Route order: your own home/residential proxy (secret YTDLP_HOME_PROXY, never blocked like datacenter IPs),
+    # then direct, then the free WARP proxy. Same full-quality download on every route.
+    proxies = ([os.environ["YTDLP_HOME_PROXY"]] if os.environ.get("YTDLP_HOME_PROXY") else []) + [None] \
+              + ([os.environ["YTDLP_PROXY"]] if os.environ.get("YTDLP_PROXY") else [])
     last = None
     for px in proxies:
         for extra in attempts:
@@ -77,7 +77,7 @@ def download(url):
                         "YouTube blocked this download (Sign in to confirm you’re not a bot) because the "
                         "GitHub runner looks like a robot. Fix: export cookies from a logged-in Chrome via the "
                         "'Get cookies.txt LOCALLY' extension and set them as the Actions secret YT_COOKIES "
-                        "(or commit them as botbeat/cookies.txt), then re-run this workflow. No code change needed.")
+                        "(or commit them as botbeat/cookies.txt), then re-run this workflow.\nyt-dlp said: " + err[-400:])
                 else:
                     last = e
                 print("download attempt failed:", px or "direct", extra or "default", file=sys.stderr)
@@ -223,7 +223,12 @@ def overlay(words, hook, cta, total, credit):
 def main():
     clip = json.loads(sys.argv[1])
     shutil.rmtree(WORK, ignore_errors=True); WORK.mkdir(parents=True); OUT.mkdir(exist_ok=True)
-    src = download(clip["url"])
+    try:
+        src = download(clip["url"])
+    except RuntimeError as e:
+        if "not a bot" in str(e):   # blocked, not broken: exit 3 so the workflow skips cleanly and retries this clip next run
+            print(e, file=sys.stderr); sys.exit(3)
+        raise
     s = script(clip)
     words = asyncio.run(tts(s["vo"], str(WORK / "vo.mp3")))
     vo_len = duration(WORK / "vo.mp3")
