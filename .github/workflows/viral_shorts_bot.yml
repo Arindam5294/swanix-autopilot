@@ -1,0 +1,21 @@
+name: Viral Trend Auto-Poster
+on:
+  schedule:
+    - cron: '0 14 * * *' # Runs automatically every day at 14:00 UTC
+  workflow_dispatch:     # Allows you to click "Run workflow" manually
+jobs:
+  post_viral_short:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          pip install feedparser google-auth-oauthlib google-auth-httplib2 google-api-python-client
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Run Trend Catcher Pipeline
+        run: python botbeat/catch_trends.py
+        env:
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
