@@ -14,7 +14,7 @@ def fetch(url, data=None, headers=None):
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode(errors="ignore")
 
-print("=== Secret presence ===")
+print("\n=== Secret presence ===")
 cid = os.environ.get("YT_CLIENT_ID", "").strip()
 csec = os.environ.get("YT_CLIENT_SECRET", "").strip()
 rtok = os.environ.get("YT_REFRESH_TOKEN", "").strip()
@@ -23,12 +23,10 @@ print("YT_CLIENT_SECRET  set:", bool(csec), f"(len={len(csec)})" if csec else ""
 print("YT_REFRESH_TOKEN  set:", bool(rtok), f"(len={len(rtok)})" if rtok else "")
 
 if not (cid and csec and rtok):
-    print("
-RESULT: missing secret(s) above. Add them in GitHub > Settings > Secrets and variables > Actions.")
+    print("\nRESULT: missing secret(s) above. Add them in GitHub > Settings > Secrets and variables > Actions.")
     raise SystemExit(0)
 
-print("
-=== Refresh token exchange ===")
+print("\n=== Refresh token exchange ===")
 data = urllib.parse.urlencode({"client_id": cid, "client_secret": csec,
                                "refresh_token": rtok, "grant_type": "refresh_token"}).encode()
 code, body = fetch("https://oauth2.googleapis.com/token", data)
