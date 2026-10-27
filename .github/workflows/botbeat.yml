@@ -99,7 +99,12 @@ jobs:
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
         run: |
           if [ -f cookies.txt ]; then pip install -q playwright && python -m playwright install --with-deps chromium > /dev/null 2>&1 || true; fi
-          python upload_youtube.py && echo uploaded || echo "all routes failed, Telegram gets the file"
+          if python upload_youtube.py; then
+            echo uploaded
+          else
+            echo "all routes failed - diagnosing"; python diagnose_youtube.py || true
+            echo "all routes failed, Telegram gets the file"
+          fi
       - uses: actions/upload-artifact@v5
         if: always() && hashFiles('botbeat/out/upload_error.png') != ''
         with: { name: upload-error-screenshot, path: botbeat/out/upload_error.png, retention-days: 7 }
