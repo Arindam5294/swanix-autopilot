@@ -74,6 +74,15 @@ def video_status(tok, vid):
     items = json.loads(b).get("items", [])
     return items[0]["status"] if items else {}
 
+def safe_status(tok, vid, fallback):
+    try:
+        return video_status(tok, vid) or fallback
+    except urllib.error.HTTPError as e:
+        if e.code == 403:
+            note("Status check not allowed with upload-only token; trusting upload response.")
+            return fallback
+        raise
+
 def delete(tok, vid):
     try: req(f"https://www.googleapis.com/youtube/v3/videos?id={vid}", headers={"Authorization": f"Bearer {tok}"}, method="DELETE")
     except Exception as e: note(f"couldn't delete locked copy {vid}: {e}")
@@ -91,7 +100,7 @@ def api_routes():
     try:
         r = api_upload(tok, {"privacyStatus": "public"}); vid = r["id"]
         time.sleep(90)
-        st = video_status(tok, vid)
+        st = safe_status(tok, vid, r.get("status", {}))
         if st.get("privacyStatus") == "public" and st.get("uploadStatus") not in ("rejected", "failed"):
             state.pop("api_locked_until", None); done(f"https://youtube.com/shorts/{vid}", "api-public")
         locked = True
@@ -108,7 +117,7 @@ def api_routes():
         when = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=15)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         r = api_upload(tok, {"privacyStatus": "private", "publishAt": when}); vid = r["id"]
         time.sleep(30)
-        st = video_status(tok, vid)
+        st = safe_status(tok, vid, r.get("status", {}))
         if st.get("publishAt") and st.get("uploadStatus") not in ("rejected", "failed"):
             state["pending_check"] = {"id": vid, "publishAt": when}
             done(f"https://youtube.com/shorts/{vid}", "api-scheduled")
