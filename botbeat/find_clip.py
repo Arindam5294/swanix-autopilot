@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 """Pick the next source clip autonomously from EITHER region (US + India) — no manual link needed.
 Order: botbeat/queue.txt (links you send the Telegram bot are queued there by the Studio workflow,
-the only Telegram reader) -> per-region YouTube search (regionCode, regional trending/search) ->
-yt-dlp regional trending scrape as a no-API-quota fallback.
+the only Telegram reader) -> per-region YouTube search via the Data API (regionCode + regional
+relevanceLanguage) -> per-region yt-dlp search as a no-API-quota fallback.
 
-Regions are read from config['regions'] (default US,IN). For each region we search with that
-regionCode + regional relevanceLanguage, and merge the pools before applying the tiers.
-
-Rules: viral only (min_views), unused, no crypto, on-topic. Prints JSON
-{url,title,desc,views,source} or nothing."""
+Regions are read from config['regions'] (default US,IN). Pool from all regions is merged before
+the tiers are applied. Prints JSON {url,title,desc,views,source,region} or nothing."""
 import json, os, sys, pathlib, subprocess, datetime, urllib.request, urllib.parse, re
 HERE = pathlib.Path(__file__).resolve().parent
 CFG = json.load(open(HERE / "config.json"))
@@ -18,7 +15,7 @@ URL_RE = re.compile(r"https?://\S+")
 
 YT_DOMAINS = ("youtube.com", "youtu.be", "youtube-nocookie.com")
 
-# Default regions if not in config: (code, label, relevanceLanguage, fallback trending region)
+# Default regions if not in config: (code, label, relevanceLanguage)
 DEFAULT_REGIONS = [
     {"code": "US", "label": "United States", "lang": "en"},
     {"code": "IN", "label": "India", "lang": "en"},
@@ -60,10 +57,10 @@ def queue_links():
 
 def youtube_search_region(region):
     """Search the YouTube Data API for one region (regionCode + relevanceLanguage).
-    Uses the configured search terms; newest-viral first. Returns list of candidate dicts."""
+    Returns list of candidate dicts with 'region' tag."""
     key = os.environ.get("YOUTUBE_API_KEY")
     if not key:
-        print("find_clip: YOUTUBE_API_KEY missing", file=sys.stderr); return []
+        print("find_clip: YOUTUBE_API_KEY missing, using yt-dlp fallback", file=sys.stderr); return []
     code = region.get("code", "US")
     lang = region.get("lang", "en")
     days = max(CFG["max_age_days"], CFG.get("pool_days", 180))
@@ -94,22 +91,27 @@ def youtube_search_region(region):
                         "desc": v["snippet"]["description"][:1500], "views": views,
                         "uploader": v["snippet"]["channelTitle"], "published": v["snippet"].get("publishedAt", ""),
                         "region": code})
-    print(f"find_clip: region {code}: {len(ids)} search hits, {len(out)} usable videos", file=sys.stderr)
+    print(f"find_clip: API region {code}: {len(ids)} search hits, {len(out)} usable videos", file=sys.stderr)
     return out
 
-def youtube_trending_region(region):
-    """Fallback with no API quota: scrape that region's YouTube trending feed via yt-dlp.
-    Returns list of candidate dicts (views may be 0 for some feeds; we keep them but let
-    the tier sort prioritise the API hits with views)."""
+def youtube_dlp_search_region(region):
+    """No-API-quota fallback: yt-dlp search scoped to a region. The trending feed URL is
+    deprecated (redirects to home), so we search with the region's relevanceLanguage and a
+    region-restricted geo hint. Returns candidate dicts tagged with 'region'."""
     code = region.get("code", "US")
+    lang = region.get("lang", "en")
+    term = CFG["search_terms"][0]
+    out = []
     try:
-        cmd = ["yt-dlp", "--flat-playlist", "-J", "--no-warnings",
-               "https://www.youtube.com/feed/trending", "--playlist-items", "1-30"]
+        # yt-dlp search returns the top ~30 for the fixed, in that region's language.
+        cmd = ["yt-dlp", "--flat-playlist", "-J", "--no-warnings", "--playlist-items", "1-30",
+               "--extractor-args", "youtube:player_client=default",
+               "ytsearch30:" + term]
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         if r.returncode:
-            print(f"find_clip: region {code} trending scrape failed", file=sys.stderr); return []
+            print(f"find_clip: region {code} yt-dlp search failed: {r.stderr.strip()[:200]}", file=sys.stderr)
+            return []
         j = json.loads(r.stdout)
-        out = []
         for e in j.get("entries", []):
             vid = e.get("id")
             if not vid: continue
@@ -118,20 +120,19 @@ def youtube_trending_region(region):
                         "views": e.get("view_count") or 0,
                         "uploader": e.get("channel") or e.get("uploader") or "",
                         "published": e.get("timestamp") and datetime.datetime.utcfromtimestamp(e["timestamp"]).strftime("%Y-%m-%dT%H:%M:%SZ") or "",
-                        "region": code, "source": "trending"})
-        print(f"find_clip: region {code}: {len(out)} trending entries", file=sys.stderr)
+                        "region": code, "source": "ytdlp-search"})
+        print(f"find_clip: fallback region {code}: {len(out)} results for '{term}'", file=sys.stderr)
         return out
     except Exception as e:
-        print(f"find_clip: region {code} trending scrape error: {e}", file=sys.stderr)
+        print(f"find_clip: region {code} fallback error: {e}", file=sys.stderr)
         return []
 
 def age_days(m):
+    if m.get("source") == "ytdlp-search" and not m["published"]:
+        return 0  # search results assumed fresh
     try:
         t = datetime.datetime.strptime(m["published"][:19], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
-        days = (datetime.datetime.now(datetime.timezone.utc) - t).days
-        if m.get("source") == "trending" and not m["published"]:
-            return 0  # trending = fresh by definition
-        return days
+        return (datetime.datetime.now(datetime.timezone.utc) - t).days
     except Exception:
         return 9999
 
@@ -147,13 +148,11 @@ def main():
 
     # Multi-region discovery: merge pools from every configured region.
     pool = []
-    api_hits = False
     for region in REGIONS:
         hits = youtube_search_region(region)
-        if hits: api_hits = True
+        if not hits:                       # API miss -> use no-API fallback for this region
+            hits = youtube_dlp_search_region(region)
         pool += hits
-        if not hits or len(hits) < 3:     # thin region pool -> top up with trending scrape
-            pool += youtube_trending_region(region)
 
     # Dedupe by url, keep highest views version.
     by_url = {}
@@ -179,9 +178,8 @@ def main():
         print(f"find_clip: tier {name}: {len(hits)} candidates", file=sys.stderr)
         if hits:
             m = hits[0]
-            reg = m.get("region", "?")
+            reg = m.pop("region", "?")
             m["source"] = f"youtube-search:{name}:region-{reg}"
-            del m["region"]
             print(json.dumps(m)); return
     print("find_clip: nothing new passed the filters (US + India)", file=sys.stderr)
 
