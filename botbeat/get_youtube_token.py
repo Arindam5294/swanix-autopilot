@@ -1,24 +1,39 @@
-#!/usr/bin/env python3
-"""One-time: get the YouTube refresh token. Run in Codespaces:  python botbeat/get_youtube_token.py"""
-import json, urllib.parse, urllib.request
+import sys
+from google_auth_oauthlib.flow import InstalledAppFlow
 
-cid = input("Paste Client ID: ").strip()
-csec = input("Paste Client secret: ").strip()
-redirect = "http://localhost"
-url = "https://accounts.google.com/o/oauth2/auth?" + urllib.parse.urlencode({
-    "client_id": cid, "redirect_uri": redirect, "response_type": "code", "access_type": "offline",
-    "prompt": "consent", "scope": "https://www.googleapis.com/auth/youtube"})
-print("\n1) Open this link, pick the Google account + the Botbeat channel, tap Advanced > Go to app (unsafe) > Continue:\n")
-print(url)
-print("\n2) The page will fail to load (that's fine). Copy the WHOLE address from the address bar (starts with http://localhost).\n")
-back = input("Paste that address here: ").strip()
-code = urllib.parse.parse_qs(urllib.parse.urlparse(back).query).get("code", [back])[0]
-data = urllib.parse.urlencode({"code": code, "client_id": cid, "client_secret": csec,
-                               "redirect_uri": redirect, "grant_type": "authorization_code"}).encode()
-tok = json.loads(urllib.request.urlopen("https://oauth2.googleapis.com/token", data).read())
-if "refresh_token" not in tok:
-    print("No refresh token returned:", tok); raise SystemExit(1)
-print("\nDone. Add these 3 repository secrets (Settings > Secrets and variables > Actions):")
-print("YT_CLIENT_ID      =", cid)
-print("YT_CLIENT_SECRET  =", csec)
-print("YT_REFRESH_TOKEN  =", tok["refresh_token"])
+SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
+
+def main():
+    client_id = input("Paste Client ID: ").strip()
+    client_secret = input("Paste Client Secret: ").strip()
+    
+    client_config = {
+        "installed": {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": ["http://localhost"]
+        }
+    }
+    
+    flow = InstalledAppFlow.from_client_config(client_config, scopes=SCOPES)
+    flow.redirect_uri = "http://localhost"
+    auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
+    
+    print("\n=== OPEN THIS LINK IN YOUR BROWSER ===")
+    print(auth_url)
+    print("======================================\n")
+    
+    redirect_response = input("Paste the full redirected URL: ").strip()
+    
+    if "code=" in redirect_response:
+        code = redirect_response.split("code=")[1].split("&")[0]
+    else:
+        code = redirect_response
+        
+    flow.fetch_token(code=code)
+    print("\nYOUR REFRESH TOKEN:\n" + flow.credentials.refresh_token)
+
+if __name__ == "__main__":
+    main()
