@@ -1,0 +1,41 @@
+name: Viral Shorts 12AM-12PM IST
+on:
+  schedule:
+    - cron: '30 18 * * *'  # 12:00 AM IST
+    - cron: '30 6 * * *'   # 12:00 PM IST
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: repo-writes
+  cancel-in-progress: false
+jobs:
+  viral_then_botbeat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install feedparser
+      - name: Catch trend and queue a clip
+        run: python botbeat/catch_trends.py
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      - name: Save queue
+        run: |
+          git config user.name "botbeat"
+          git config user.email "botbeat@users.noreply.github.com"
+          git add botbeat/queue.txt
+          git diff --cached --quiet && { echo "Nothing new queued."; exit 0; }
+          git commit -m "botbeat: queue trending clip"
+          for i in 1 2 3 4 5; do
+            git pull --rebase -X theirs origin "${GITHUB_REF_NAME}" && git push && exit 0
+            sleep $((i*5))
+          done
+          echo "Could not push queue"; exit 1
+      - name: Start Botbeat to make and upload it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run botbeat.yml --ref "${GITHUB_REF_NAME}"
