@@ -72,13 +72,14 @@ def download(url):
                 err = str(e)
                 if "[Piracy]" in err or "primarily used for piracy" in err.lower():
                     raise RuntimeError(f"yt-dlp blocked this domain (piracy list): {url}") from e
-                if "not a bot" in err or "LOGIN_REQUIRED" in err or "Sign in" in err:
+                if ("not a bot" in err or "LOGIN_REQUIRED" in err or "Sign in" in err or "HTTP Error 403" in err
+                        or "SABR" in err or "unable to download video data" in err):
                     last = RuntimeError(
                         "YouTube blocked this download (Sign in to confirm you’re not a bot) because the "
                         "GitHub runner looks like a robot. Fix: export cookies from a logged-in Chrome via the "
                         "'Get cookies.txt LOCALLY' extension and set them as the Actions secret YT_COOKIES "
                         "(or commit them as botbeat/cookies.txt), then re-run this workflow.\nyt-dlp said: " + err[-400:])
-                else:
+                elif not (last and "not a bot" in str(last)):
                     last = e
                 print("download attempt failed:", px or "direct", extra or "default", file=sys.stderr)
     raise last or RuntimeError("download failed")

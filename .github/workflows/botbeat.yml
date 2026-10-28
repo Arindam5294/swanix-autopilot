@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core && pip install -q -U yt-dlp bgutil-ytdlp-pot-provider edge-tts gtts pillow
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core && pip install -q -U --pre "yt-dlp[default]" bgutil-ytdlp-pot-provider edge-tts gtts pillow
       - name: Optional cookies (only if YouTube/X block downloads)
         env: { YT_COOKIES: "${{ secrets.YT_COOKIES }}" }
         run: '[ -n "$YT_COOKIES" ] && printf "%s" "$YT_COOKIES" > cookies.txt || true'
