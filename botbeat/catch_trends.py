@@ -16,10 +16,10 @@ def get(url, timeout=20):
     return urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=timeout).read().decode("utf-8", "replace")
 
 def on_topic(text):
-    t = " " + (text or "").lower() + " "
-    return (any(w in t for w in CFG.get("must_match", []))
-            and not any(w in t for w in CFG.get("skip_words", []))
-            and not any(w in t for w in CFG.get("banned_words", [])))
+    t = (text or "").lower()
+    hit = lambda w: re.search(r"(?<![a-z0-9])" + re.escape(w.strip()) + (r"(?![a-z0-9])" if len(w.strip()) <= 3 else ""), t)
+    return (any(hit(w) for w in CFG.get("must_match", []) if w.strip() not in ("android", "atlas"))
+            and not any(hit(w) for w in CFG.get("skip_words", []) + CFG.get("banned_words", [])))
 
 def get_trends():
     out = []

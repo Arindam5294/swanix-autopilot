@@ -30,8 +30,10 @@ def bad(text):
     return any(w in t for w in CFG["banned_words"])
 
 def on_topic(text):
-    t = " " + text.lower() + " "
-    return any(w in t for w in CFG.get("must_match", [])) and not any(w in t for w in CFG.get("skip_words", []))
+    t = (text or "").lower()
+    hit = lambda w: re.search(r"(?<![a-z0-9])" + re.escape(w.strip()) + (r"(?![a-z0-9])" if len(w.strip()) <= 3 else ""), t)
+    return (any(hit(w) for w in CFG.get("must_match", []) if w.strip() not in ("android", "atlas"))
+            and not any(hit(w) for w in CFG.get("skip_words", []) + CFG.get("banned_words", [])))
 
 def minutes(iso):
     m = re.match(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", iso or "")
