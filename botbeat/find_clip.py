@@ -55,6 +55,10 @@ def queue_links():
     q = HERE / "queue.txt"
     return [l.strip() for l in q.read_text().splitlines() if l.strip().startswith("http")] if q.exists() else []
 
+def split_q(line):
+    parts = line.split()
+    return parts[0], "#trend" in parts[1:]
+
 def youtube_search_region(region):
     """Search the YouTube Data API for one region (regionCode + relevanceLanguage).
     Returns list of candidate dicts with 'region' tag."""
@@ -138,13 +142,16 @@ def age_days(m):
 
 def main():
     manual = queue_links()                   # links you send the bot land here (studio/run.py queues them)
-    for url in manual:                       # links you chose yourself skip the view bar
+    for line in manual:                      # links you chose yourself skip the view bar
+        url, auto = split_q(line)
         if url in USED: continue
         if not is_youtube(url):
             print(f"find_clip: skipping non-YouTube URL: {url}", file=sys.stderr)
             continue
         m = meta(url) or {"url": url, "title": "", "desc": "", "views": 0, "uploader": ""}
-        m["source"] = "manual"; print(json.dumps(m)); return
+        if auto and m["title"] and not (on_topic(m["title"]) and not bad(m["title"] + m["desc"])):
+            print(f"find_clip: trend clip off-topic, skipped: {m['title'][:80]!r}", file=sys.stderr); continue
+        m["source"] = "trend" if auto else "manual"; print(json.dumps(m)); return
 
     # Multi-region discovery: merge pools from every configured region.
     pool = []
