@@ -295,14 +295,16 @@
   "tp2": 96.79068984985352,
   "candle_open_ms": 1793203200000,
   "mode": "shadow",
-  "status": "open",
+  "status": "expired",
   "confidence": 75,
   "rr": 1.53,
   "htf": {
    "4h": "down",
    "1d": "down",
    "1h": "down"
-  }
+  },
+  "resolved_at": 1793296517,
+  "r": 0.192
  },
  {
   "id": "ETHUSDT-1h-SHORT-1793210434",
@@ -385,5 +387,26 @@
   "confidence": 79,
   "block_reason": "R:R 0.78 after real stop placement is below 1.5",
   "htf": {}
+ },
+ {
+  "id": "XRPUSDT-1h-LONG-1793296661",
+  "ts": 1793296661,
+  "sym": "XRPUSDT",
+  "tf": "1h",
+  "side": "LONG",
+  "entry": 1.2918,
+  "sl": 1.2832541666666668,
+  "tp1": 1.3808500289916992,
+  "tp2": 1.3901414036750792,
+  "candle_open_ms": 1793289600000,
+  "mode": "blocked",
+  "status": "open",
+  "confidence": 76,
+  "block_reason": "LONG blocked: trend is down (4h down, 1d down, 1h down)",
+  "htf": {
+   "4h": "down",
+   "1d": "down",
+   "1h": "down"
+  }
  }
 ]
