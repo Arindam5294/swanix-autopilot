@@ -26,7 +26,7 @@ jobs:
         run: |
           git config user.name "botbeat"
           git config user.email "botbeat@users.noreply.github.com"
-          git add botbeat/queue.txt
+          git add botbeat/queue.txt botbeat/trend_state.json 2>/dev/null || git add botbeat/queue.txt
           git diff --cached --quiet && { echo "Nothing new queued."; exit 0; }
           git commit -m "botbeat: queue trending clip"
           for i in 1 2 3 4 5; do

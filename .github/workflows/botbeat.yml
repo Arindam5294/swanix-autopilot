@@ -7,6 +7,13 @@ on:
       url:
         description: "Optional: make a Short from this exact link"
         required: false
+      topic:
+        description: "Optional: trending topic for that link (e.g. Stephen Curry) - narrates the trend, not robots"
+        required: false
+      preview:
+        description: "Preview only: send the Short to Telegram, do NOT upload to YouTube"
+        type: boolean
+        default: false
 permissions:
   contents: write
 concurrency: { group: botbeat, cancel-in-progress: false }
@@ -41,9 +48,10 @@ jobs:
         run: '[ -n "$YT_COOKIES" ] && printf "%s" "$YT_COOKIES" > cookies.txt || true'
       - name: Pick a viral clip
         id: pick
-        env: { MANUAL_URL: "${{ github.event.inputs.url }}" }
+        env: { MANUAL_URL: "${{ github.event.inputs.url }}", TOPIC: "${{ github.event.inputs.topic }}" }
         run: |
-          if [ -n "$MANUAL_URL" ]; then echo "$MANUAL_URL" >> queue.txt; fi
+          if [ -n "$MANUAL_URL" ] && [ -n "$TOPIC" ]; then echo "$MANUAL_URL #trend #general topic=${TOPIC// /_}" >> queue.txt
+          elif [ -n "$MANUAL_URL" ]; then echo "$MANUAL_URL" >> queue.txt; fi
           CLIP=$(python find_clip.py || true)
           echo "$CLIP"
           { echo "clip<<EOF"; echo "$CLIP"; echo "EOF"; } >> "$GITHUB_OUTPUT"
@@ -89,11 +97,21 @@ jobs:
             echo "::warning::YouTube bot wall: skipped this run, clip retried next run"
             exit 0
           fi
+          if [ $RC -eq 5 ]; then
+            # trend clip was a photo slideshow: never retry it, no Short this run
+            python -c "import json,sys; f='used.json'; u=json.load(open(f)); u.append(json.loads(sys.argv[1])['url']); json.dump(u,open(f,'w'))" "$CLIP"
+            python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram('Botbeat: the trend clip was a photo slideshow, so it was skipped (no fake-footage Short).')" || true
+            exit 0
+          fi
           python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "Botbeat failed: $(tail -c 300 err.txt)" || true
           exit 1
+      - name: Preview only - send to Telegram, no upload
+        if: steps.make.outputs.made == 'true' && github.event.inputs.preview == 'true'
+        env: { BOTBEAT_PREVIEW: "1" }
+        run: python send_short.py
       - name: Lock clip as used before uploading (no duplicates from re-runs/cancels/overlaps)
         id: lock
-        if: steps.make.outputs.made == 'true'
+        if: steps.make.outputs.made == 'true' && github.event.inputs.preview != 'true'
         run: |
           set +e; python mark_used.py; RC=$?
           if [ $RC -eq 4 ]; then echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::warning::clip already posted, upload skipped"; exit 0; fi
@@ -123,7 +141,7 @@ jobs:
         if: steps.make.outputs.made == 'true'
         with: { name: botbeat-short, path: botbeat/out/, retention-days: 7 }
       - name: Remember used clips
-        if: always()
+        if: always() && github.event.inputs.preview != 'true'
         run: |
           rm -f cookies.txt
           # race-safe save: keeps links Studio queued while this ran (Studio is the only Telegram reader now)

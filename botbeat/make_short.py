@@ -88,6 +88,8 @@ def duration(p):
     return float(sh("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(p)).strip())
 
 def script(clip):
+    if clip.get("mode") == "general":
+        return script_general(clip)
     prompt = f"""You write YouTube Shorts for Botbeat, an English AI/robot news channel with calm, professional narration.
 Source clip title: {clip['title']}
 Source description: {clip['desc'][:1200]}
@@ -103,6 +105,41 @@ Return ONLY JSON with keys:
     txt = ask(prompt + "\nAnswer with valid JSON only.", min_len=200)
     m = re.search(r"\{.*\}", txt, re.S)
     return json.loads(m.group(0))
+
+def script_general(clip):
+    """Mix mode: a big general trend. Narrate ONLY that trend; never drag robots/AI in."""
+    prompt = f"""You write YouTube Shorts for Botbeat's 'Trending Now' segment: calm, professional English news narration.
+Trending topic: {clip['topic']}
+Source clip title: {clip['title']}
+Source description: {clip['desc'][:1200]}
+Uploader: {clip.get('uploader','')}
+Talk ONLY about this trending topic and what the clip shows. Do NOT mention robots, AI or technology unless the
+title/description is about them. Only facts stated in the title/description (never invent scores, numbers, quotes),
+no slang, no crypto, no hype words.
+Return ONLY JSON with keys:
+"hook": top-of-screen hook, max 5 words, ALL CAPS, about {clip['topic']};
+"vo": voiceover, 50-65 words, first sentence is the hook spoken, ends with a short question to the viewer;
+"cta": max 5 words ALL CAPS question shown at the end;
+"title": viral title under 70 characters about {clip['topic']} with one emoji, ending with " #shorts #trending";
+"description": 2-3 sentences + credit line "Clip: <uploader>" + 8 hashtags about the topic;
+"tags": list of 14 tags about the topic."""
+    txt = ask(prompt + "\nAnswer with valid JSON only.", min_len=200)
+    s = json.loads(re.search(r"\{.*\}", txt, re.S).group(0))
+    if re.search(r"\brobot|humanoid", s.get("vo", ""), re.I) and not re.search(r"robot|humanoid", clip["title"] + clip["desc"], re.I):
+        raise RuntimeError("script drifted to robots for a non-robot trend")
+    return s
+
+def is_slideshow(src):
+    """Photo slideshow / static news card? (frozen picture most of the time). Real footage moves."""
+    try:
+        d = min(duration(src), 120)
+        out = subprocess.run(["ffmpeg", "-hide_banner", "-t", str(d), "-i", str(src), "-vf", "scale=320:-2,freezedetect=n=0.003:d=1.5",
+                              "-an", "-f", "null", "-"], capture_output=True, text=True, timeout=300).stderr
+        frozen = sum(float(x) for x in re.findall(r"freeze_duration: ([\d.]+)", out))
+        print(f"slideshow check: {frozen:.0f}s of {d:.0f}s frozen", file=sys.stderr)
+        return d > 0 and frozen / d >= CFG.get("max_frozen_ratio", 0.45)
+    except Exception as e:
+        print("slideshow check skipped:", e, file=sys.stderr); return False
 
 def omni_tts(clean, mp3):
     """Signature Botbeat voice: OmniVoice (VoiceStudio's engine), local + free. Returns words or None."""
@@ -230,6 +267,8 @@ def main():
         if "not a bot" in str(e):   # blocked, not broken: exit 3 so the workflow skips cleanly and retries this clip next run
             print(e, file=sys.stderr); sys.exit(3)
         raise
+    if clip.get("source", "").startswith("trend") and is_slideshow(src):
+        print("This trend clip is a photo slideshow, not real footage. Skipping it.", file=sys.stderr); sys.exit(5)
     s = script(clip)
     words = asyncio.run(tts(s["vo"], str(WORK / "vo.mp3")))
     vo_len = duration(WORK / "vo.mp3")
@@ -252,7 +291,7 @@ def main():
        "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(total), "-r", str(FPS), "-c:v", "libx264", "-preset", "veryfast",
        "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(WORK / "short.mp4"), timeout=1500)
     shutil.copy(WORK / "short.mp4", OUT / "short.mp4")
-    s.update({"source_url": clip["url"], "source_views": clip.get("views", 0), "seconds": round(total, 1)})
+    s.update({"mode": clip.get("mode", "ai"), "topic": clip.get("topic", ""), "source_url": clip["url"], "source_views": clip.get("views", 0), "seconds": round(total, 1)})
     json.dump(s, open(OUT / "metadata.json", "w"), indent=1)
     print("made", OUT / "short.mp4", round(total, 1), "s")
 

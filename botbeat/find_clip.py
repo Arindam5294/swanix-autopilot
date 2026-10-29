@@ -76,6 +76,13 @@ def split_q(line):
     parts = line.split()
     return parts[0], "#trend" in parts[1:]
 
+def q_topic(line):
+    """'url #trend #general topic=Virat_Kohli' -> 'Virat Kohli' (None for AI/robot or manual links)."""
+    parts = line.split()
+    if "#general" not in parts: return None
+    t = next((p[6:] for p in parts if p.startswith("topic=")), "")
+    return t.replace("_", " ") or None
+
 def youtube_search_region(region):
     """Search the YouTube Data API for one region (regionCode + relevanceLanguage).
     Returns list of candidate dicts with 'region' tag."""
@@ -166,6 +173,11 @@ def main():
             print(f"find_clip: skipping non-YouTube URL: {url}", file=sys.stderr)
             continue
         m = meta(url) or {"url": url, "title": "", "desc": "", "views": 0, "uploader": ""}
+        topic = q_topic(line)
+        if topic:   # mix mode: a general trend; Botbeat narrates THIS topic, not robots
+            if bad(m["title"] + m["desc"]):
+                print(f"find_clip: general trend clip banned, skipped: {m['title'][:80]!r}", file=sys.stderr); continue
+            m.update({"source": "trend-general", "mode": "general", "topic": topic}); print(json.dumps(m)); return
         if auto and m["title"] and not (on_topic(m["title"]) and not bad(m["title"] + m["desc"])):
             print(f"find_clip: trend clip off-topic, skipped: {m['title'][:80]!r}", file=sys.stderr); continue
         m["source"] = "trend" if auto else "manual"; print(json.dumps(m)); return
