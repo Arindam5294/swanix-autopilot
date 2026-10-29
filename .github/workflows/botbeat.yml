@@ -45,7 +45,7 @@ jobs:
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core && pip install -q -U --pre "yt-dlp[default]" bgutil-ytdlp-pot-provider edge-tts gtts pillow
       - name: Optional cookies (only if YouTube/X block downloads)
         env: { YT_COOKIES: "${{ secrets.YT_COOKIES }}" }
-        run: '[ -n "$YT_COOKIES" ] && printf "%s" "$YT_COOKIES" > cookies.txt || true'
+        run: python fix_cookies.py || true
       - name: Pick a viral clip
         id: pick
         env: { MANUAL_URL: "${{ github.event.inputs.url }}", TOPIC: "${{ github.event.inputs.topic }}" }

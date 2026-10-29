@@ -59,9 +59,12 @@ def download(url):
     proxies = ([os.environ["YTDLP_HOME_PROXY"]] if os.environ.get("YTDLP_HOME_PROXY") else []) + [None] \
               + ([os.environ["YTDLP_PROXY"]] if os.environ.get("YTDLP_PROXY") else [])
     last = None
-    for px in proxies:
-        for extra in attempts:
-            cmd = base + extra + (["--proxy", px] if px else []) + [url]
+    # With cookies, also try every route without them: bad/rotated cookies give HTTP 400 'invalid argument'.
+    plan = [(px, extra, True) for px in proxies for extra in attempts] if has_cookies else []
+    plan += [(px, extra, False) for px in proxies for extra in attempts]
+    for px, extra, use_ck in plan:
+        if True:
+            cmd = (base if use_ck else [a for a in base if a not in ("--cookies", "cookies.txt")]) + extra + (["--proxy", px] if px else []) + [url]
             try:
                 for f in WORK.glob("src.*"): f.unlink()
                 sh(*cmd, timeout=600)
@@ -72,7 +75,8 @@ def download(url):
                 err = str(e)
                 if "[Piracy]" in err or "primarily used for piracy" in err.lower():
                     raise RuntimeError(f"yt-dlp blocked this domain (piracy list): {url}") from e
-                if ("not a bot" in err or "LOGIN_REQUIRED" in err or "Sign in" in err or "HTTP Error 403" in err
+                if ("not a bot" in err or "LOGIN_REQUIRED" in err or "HTTP Error 400" in err or "invalid argument" in err
+                        or "Failed to extract any player response" in err or "Sign in" in err or "HTTP Error 403" in err
                         or "SABR" in err or "unable to download video data" in err):
                     last = RuntimeError(
                         "YouTube blocked this download (Sign in to confirm you’re not a bot) because the "
@@ -81,7 +85,7 @@ def download(url):
                         "(or commit them as botbeat/cookies.txt), then re-run this workflow.\nyt-dlp said: " + err[-400:])
                 elif not (last and "not a bot" in str(last)):
                     last = e
-                print("download attempt failed:", px or "direct", extra or "default", file=sys.stderr)
+                print("download attempt failed:", px or "direct", extra or "default", "cookies" if use_ck else "no-cookies", file=sys.stderr)
     raise last or RuntimeError("download failed")
 
 def duration(p):
