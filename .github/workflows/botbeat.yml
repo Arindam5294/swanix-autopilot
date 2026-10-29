@@ -32,6 +32,7 @@ jobs:
       YTDLP_HOME_PROXY: ${{ secrets.YTDLP_HOME_PROXY }}
     steps:
       - uses: actions/checkout@v5
+        with: { ref: "${{ github.ref_name }}" }   # newest code + used.json, even when an old run is re-run
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core && pip install -q -U --pre "yt-dlp[default]" bgutil-ytdlp-pot-provider edge-tts gtts pillow
@@ -90,8 +91,15 @@ jobs:
           fi
           python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "Botbeat failed: $(tail -c 300 err.txt)" || true
           exit 1
-      - name: Upload to YouTube (API, then scheduled, then browser)
+      - name: Lock clip as used before uploading (no duplicates from re-runs/cancels/overlaps)
+        id: lock
         if: steps.make.outputs.made == 'true'
+        run: |
+          set +e; python mark_used.py; RC=$?
+          if [ $RC -eq 4 ]; then echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::warning::clip already posted, upload skipped"; exit 0; fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+      - name: Upload to YouTube (API, then scheduled, then browser)
+        if: steps.lock.outputs.ok == 'true'
         continue-on-error: true
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
@@ -109,7 +117,7 @@ jobs:
         if: always() && hashFiles('botbeat/out/upload_error.png') != ''
         with: { name: upload-error-screenshot, path: botbeat/out/upload_error.png, retention-days: 7 }
       - name: Send it to you
-        if: steps.make.outputs.made == 'true'
+        if: steps.lock.outputs.ok == 'true'
         run: python send_short.py
       - uses: actions/upload-artifact@v5
         if: steps.make.outputs.made == 'true'
@@ -119,4 +127,4 @@ jobs:
         run: |
           rm -f cookies.txt
           # race-safe save: keeps links Studio queued while this ran (Studio is the only Telegram reader now)
-          python ../common/gitsave.py "botbeat: used clips" --mirror botbeat/used.json botbeat/upload_state.json --lines botbeat/queue.txt
+          python ../common/gitsave.py "botbeat: used clips" --union botbeat/used.json --mirror botbeat/upload_state.json --lines botbeat/queue.txt

@@ -10,8 +10,23 @@ import json, os, sys, pathlib, subprocess, datetime, urllib.request, urllib.pars
 HERE = pathlib.Path(__file__).resolve().parent
 CFG = json.load(open(HERE / "config.json"))
 USED_F = HERE / "used.json"
-USED = set(json.loads(USED_F.read_text())) if USED_F.exists() else set()
 URL_RE = re.compile(r"https?://\S+")
+ID_RE = re.compile(r"(?:v=|youtu\.be/|shorts/|embed/|live/)([A-Za-z0-9_-]{11})")
+def vid_id(url):
+    """Same video in any URL form (watch?v=, youtu.be, shorts/, ?si=...) -> one 11-char id."""
+    m = ID_RE.search(url or ""); return m.group(1) if m else (url or "").split("?")[0].rstrip("/")
+def load_used():
+    """used.json from this checkout PLUS the newest one on GitHub (a re-run of an old run checks out
+    an old used.json, which is how the same clip got posted again and again)."""
+    urls = json.loads(USED_F.read_text()) if USED_F.exists() else []
+    try:
+        subprocess.run(["git", "fetch", "-q", "--depth=1", "origin", "main"], cwd=HERE, timeout=60, capture_output=True)
+        r = subprocess.run(["git", "show", "FETCH_HEAD:botbeat/used.json"], cwd=HERE, capture_output=True, text=True, timeout=30)
+        if r.returncode == 0: urls += json.loads(r.stdout)
+    except Exception as e:
+        print(f"find_clip: couldn't read newest used.json ({e})", file=sys.stderr)
+    return {vid_id(u) for u in urls}
+USED = load_used()
 
 YT_DOMAINS = ("youtube.com", "youtu.be", "youtube-nocookie.com")
 
@@ -146,7 +161,7 @@ def main():
     manual = queue_links()                   # links you send the bot land here (studio/run.py queues them)
     for line in manual:                      # links you chose yourself skip the view bar
         url, auto = split_q(line)
-        if url in USED: continue
+        if vid_id(url) in USED: continue
         if not is_youtube(url):
             print(f"find_clip: skipping non-YouTube URL: {url}", file=sys.stderr)
             continue
@@ -173,7 +188,7 @@ def main():
 
     # Apply the same filters as before, across all regions.
     filtered = [m for m in pool
-                if m["url"] not in USED and m["views"] >= CFG["min_views"]
+                if vid_id(m["url"]) not in USED and m["views"] >= CFG["min_views"]
                 and not bad(m["title"] + m["desc"]) and on_topic(m["title"])]
     trusted = {c.lower() for c in CFG.get("trusted_channels", [])}
     is_trusted = lambda m: m["uploader"].lower() in trusted

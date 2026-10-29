@@ -100,7 +100,9 @@ def api_routes():
     try:
         r = api_upload(tok, {"privacyStatus": "public"}); vid = r["id"]
         time.sleep(90)
-        st = safe_status(tok, vid, r.get("status", {}))
+        try: st = safe_status(tok, vid, r.get("status", {}))
+        except Exception as e:  # it IS uploaded; a failed check must not trigger a second upload
+            note(f"status check failed ({e}); keeping the uploaded video"); done(f"https://youtube.com/shorts/{vid}", "api-public")
         if st.get("privacyStatus") == "public" and st.get("uploadStatus") not in ("rejected", "failed"):
             state.pop("api_locked_until", None); done(f"https://youtube.com/shorts/{vid}", "api-public")
         locked = True
@@ -117,7 +119,9 @@ def api_routes():
         when = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=15)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         r = api_upload(tok, {"privacyStatus": "private", "publishAt": when}); vid = r["id"]
         time.sleep(30)
-        st = safe_status(tok, vid, r.get("status", {}))
+        try: st = safe_status(tok, vid, r.get("status", {}))
+        except Exception as e:
+            note(f"status check failed ({e}); keeping the scheduled video"); done(f"https://youtube.com/shorts/{vid}", "api-scheduled")
         if st.get("publishAt") and st.get("uploadStatus") not in ("rejected", "failed"):
             state["pending_check"] = {"id": vid, "publishAt": when}
             done(f"https://youtube.com/shorts/{vid}", "api-scheduled")

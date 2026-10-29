@@ -67,7 +67,9 @@ def main():
     if not niche:
         print("No AI/robot trend today. Nothing queued (Botbeat uses its own robot search instead).")
         return 0
-    used = set(json.loads(USED.read_text())) if USED.exists() else set()
+    idf = lambda u: (re.search(r"(?:v=|youtu\.be/|shorts/)([A-Za-z0-9_-]{11})", u or "") or [None, u])[1]
+    used = {idf(u) for u in (json.loads(USED.read_text()) if USED.exists() else [])}
+    used |= {idf(l.split()[0]) for l in (QUEUE.read_text().splitlines() if QUEUE.exists() else []) if l.strip().startswith("http")}
     queued = {l.split()[0] for l in QUEUE.read_text().splitlines() if l.strip()} if QUEUE.exists() else set()
     for trend, _ in niche[:10]:
         for vid, text in (search_api(trend) or search_scrape(trend)):

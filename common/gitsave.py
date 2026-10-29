@@ -3,10 +3,11 @@
 
 python common/gitsave.py "message" --mirror <paths...> --lines <files...>
   --mirror: files/folders this workflow owns; our copy wins (deletions included)
+  --union: JSON list files (e.g. botbeat/used.json); newest remote list + our new entries, nothing ever dropped
   --lines : shared line lists (e.g. botbeat/queue.txt); lines we added/removed since checkout are re-applied
             on top of the newest remote version, so another workflow's edits are kept too.
 Retries up to 5 times (fetch newest, re-apply, push)."""
-import os, pathlib, shutil, subprocess, sys, tempfile, time
+import json, os, pathlib, shutil, subprocess, sys, tempfile, time
 
 
 def git(*a, check=True):
@@ -20,11 +21,11 @@ def main():
     args = sys.argv[1:]
     if not args:
         print(__doc__); return
-    msg, mirror, lines, mode = args[0], [], [], None
+    msg, mirror, lines, union, mode = args[0], [], [], [], None
     for a in args[1:]:
-        if a in ("--mirror", "--lines"):
+        if a in ("--mirror", "--lines", "--union"):
             mode = a; continue
-        (mirror if mode == "--mirror" else lines).append(a)
+        {"--mirror": mirror, "--union": union}.get(mode, lines).append(a)
     root = pathlib.Path(git("rev-parse", "--show-toplevel").strip())
     os.chdir(root)
     git("config", "user.name", "swanix-bot")
@@ -46,6 +47,7 @@ def main():
         b, c = [x.strip() for x in base if x.strip()], [x.strip() for x in cur if x.strip()]
         deltas[p] = ([x for x in c if x not in b], set(x for x in b if x not in c))
 
+    ours = {p: (json.loads(pathlib.Path(p).read_text()) if os.path.exists(p) else []) for p in union}
     for attempt in range(5):
         git("fetch", "--depth=1", "origin", branch, check=False)
         git("reset", "--hard", "FETCH_HEAD", check=False)
@@ -68,7 +70,12 @@ def main():
             if keep or os.path.exists(p):
                 pathlib.Path(p).parent.mkdir(parents=True, exist_ok=True)
                 pathlib.Path(p).write_text("\n".join(keep) + ("\n" if keep else ""))
-        for p in mirror + lines:
+        for p, mine in ours.items():
+            try: cur = json.loads(pathlib.Path(p).read_text()) if os.path.exists(p) else []
+            except Exception: cur = []
+            cur += [x for x in mine if x not in cur]
+            pathlib.Path(p).write_text(json.dumps(cur))
+        for p in mirror + lines + union:
             git("add", "-A", "--", p, check=False)   # one by one: a missing path must not block the others
         if not git("diff", "--cached", "--name-only").strip():
             print("nothing to commit"); return

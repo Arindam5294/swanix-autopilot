@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Send the finished Short + copy-paste metadata to Telegram, and mark the clip used."""
+"""Send the finished Short + copy-paste metadata to Telegram, and (mark_used.py marks it used)."""
 import json, os, pathlib, subprocess
 HERE = pathlib.Path(__file__).resolve().parent
 m = json.load(open(HERE / "out" / "metadata.json"))
@@ -27,10 +27,5 @@ elif tok and chat:
                     f"https://api.telegram.org/bot{tok}/sendMessage"], check=True, capture_output=True)
 else:
     (HERE / "out" / "upload_me.txt").write_text(text)
-used_f = HERE / "used.json"
-used = json.loads(used_f.read_text()) if used_f.exists() else []
-used.append(m["source_url"]); used_f.write_text(json.dumps(used))
-q = HERE / "queue.txt"
-if q.exists():
-    q.write_text("\n".join(l for l in q.read_text().splitlines() if l.strip() and l.strip() != m["source_url"]) + "\n")
+# (the clip was already marked used by mark_used.py before uploading)
 print(text)
