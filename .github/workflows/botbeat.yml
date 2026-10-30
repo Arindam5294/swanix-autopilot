@@ -103,6 +103,12 @@ jobs:
             python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram('Botbeat: the trend clip was a photo slideshow, so it was skipped (no fake-footage Short).')" || true
             exit 0
           fi
+          if [ $RC -eq 6 ]; then
+            # the AI wrote a refusal/junk instead of a script: drop this clip for good, never upload it
+            python -c "import json,sys; f='used.json'; u=json.load(open(f)); u.append(json.loads(sys.argv[1])['url']); json.dump(u,open(f,'w'))" "$CLIP"
+            python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "Botbeat: the script came back as an AI refusal, so the clip was dropped and nothing was uploaded. $(tail -c 200 err.txt)" || true
+            exit 0
+          fi
           python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "Botbeat failed: $(tail -c 300 err.txt)" || true
           exit 1
       - name: Preview only - send to Telegram, no upload

@@ -91,6 +91,24 @@ def download(url):
 def duration(p):
     return float(sh("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(p)).strip())
 
+REFUSAL = re.compile(r"no source (was )?provided|source (details|data|information)|empty fields|cannot be generated|"
+                     r"can(no|')t (generate|create|write|help)|unable to (generate|create|write)|please (provide|paste|share)|"
+                     r"kindly (provide|paste)|in your next message|no[- ]invention|as an ai\b|i('m| am) sorry|"
+                     r"insufficient (information|details)|not enough (information|details)|placeholder", re.I)
+
+def check_script(s):
+    """Reject an LLM refusal or meta-chatter before it becomes a Short (exit 6 = drop this clip, no upload)."""
+    for k in ("hook", "vo", "cta", "title", "description"):
+        if not str(s.get(k, "")).strip():
+            print(f"Script is missing '{k}'. Not making a Short from it.", file=sys.stderr); sys.exit(6)
+    blob = " ".join(str(s.get(k, "")) for k in ("hook", "vo", "cta", "title", "description"))
+    m = REFUSAL.search(blob)
+    if m:
+        print(f"Script is an AI refusal, not a story ('{m.group(0)}'). Not making a Short from it.", file=sys.stderr); sys.exit(6)
+    if len(s["vo"].split()) < 30:
+        print("Voiceover too short to be a real script. Not making a Short from it.", file=sys.stderr); sys.exit(6)
+    return s
+
 def script(clip):
     if clip.get("mode") == "general":
         return script_general(clip)
@@ -273,7 +291,9 @@ def main():
         raise
     if clip.get("source", "").startswith("trend") and is_slideshow(src):
         print("This trend clip is a photo slideshow, not real footage. Skipping it.", file=sys.stderr); sys.exit(5)
-    s = script(clip)
+    if not (clip.get("title") or "").strip():
+        print("Clip has no title/description (metadata lookup failed). Skipping, clip retried next run.", file=sys.stderr); sys.exit(3)
+    s = check_script(script(clip))
     words = asyncio.run(tts(s["vo"], str(WORK / "vo.mp3")))
     vo_len = duration(WORK / "vo.mp3")
     total = min(CFG["max_seconds"], vo_len + 2.8)

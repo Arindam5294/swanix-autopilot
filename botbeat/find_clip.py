@@ -173,6 +173,10 @@ def main():
             print(f"find_clip: skipping non-YouTube URL: {url}", file=sys.stderr)
             continue
         m = meta(url) or {"url": url, "title": "", "desc": "", "views": 0, "uploader": ""}
+        if not (m.get("title") or "").strip():
+            # No title/description = nothing true to narrate, and the topic filter can't run. Never pass it on
+            # (Oct 30: an empty-metadata clip became a Short of the LLM saying "no source provided").
+            print(f"find_clip: no metadata for {url} (YouTube blocked the lookup), skipped this run", file=sys.stderr); continue
         topic = q_topic(line)
         if topic:   # mix mode: a general trend; Botbeat narrates THIS topic, not robots
             if bad(m["title"] + m["desc"]):
