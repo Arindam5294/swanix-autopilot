@@ -505,10 +505,12 @@
   "tp2": 11.22090711593628,
   "candle_open_ms": 1793412000000,
   "mode": "blocked",
-  "status": "open",
+  "status": "loss",
   "confidence": 80,
   "block_reason": "R:R 0.46 after real stop placement is below 1.5",
-  "htf": {}
+  "htf": {},
+  "resolved_at": 1793472599,
+  "r": -1.0
  },
  {
   "id": "SOLUSDT-1h-LONG-1793433557",
@@ -539,10 +541,12 @@
   "tp2": 11.15919771194458,
   "candle_open_ms": 1793433600000,
   "mode": "blocked",
-  "status": "open",
+  "status": "loss",
   "confidence": 77,
   "block_reason": "R:R 0.57 after real stop placement is below 1.5",
-  "htf": {}
+  "htf": {},
+  "resolved_at": 1793472299,
+  "r": -1.0
  },
  {
   "id": "ETHUSDT-1h-LONG-1793462407",
@@ -559,6 +563,23 @@
   "status": "open",
   "confidence": 85,
   "block_reason": "R:R 0.51 after real stop placement is below 1.5",
+  "htf": {}
+ },
+ {
+  "id": "SUIUSDT-1h-SHORT-1793476802",
+  "ts": 1793476802,
+  "sym": "SUIUSDT",
+  "tf": "1h",
+  "side": "SHORT",
+  "entry": 0.8988,
+  "sl": 0.9077942857142858,
+  "tp1": 0.8918133616447449,
+  "tp2": 0.8786025166511536,
+  "candle_open_ms": 1793469600000,
+  "mode": "blocked",
+  "status": "open",
+  "confidence": 86,
+  "block_reason": "R:R 0.48 after real stop placement is below 1.5",
   "htf": {}
  }
 ]
