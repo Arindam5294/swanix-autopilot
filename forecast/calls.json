@@ -467,10 +467,12 @@
   "tp2": 100.0684898376465,
   "candle_open_ms": 1793347200000,
   "mode": "blocked",
-  "status": "open",
+  "status": "expired",
   "confidence": 80,
   "block_reason": "R:R 0.42 after real stop placement is below 1.5",
-  "htf": {}
+  "htf": {},
+  "resolved_at": 1793440514,
+  "r": -0.292
  },
  {
   "id": "ETHUSDT-1h-LONG-1793375876",
@@ -521,6 +523,23 @@
   "status": "open",
   "confidence": 81,
   "block_reason": "R:R 0.90 after real stop placement is below 1.5",
+  "htf": {}
+ },
+ {
+  "id": "LINKUSDT-1h-SHORT-1793440855",
+  "ts": 1793440855,
+  "sym": "LINKUSDT",
+  "tf": "1h",
+  "side": "SHORT",
+  "entry": 11.477,
+  "sl": 11.782895833333335,
+  "tp1": 11.267577362060546,
+  "tp2": 11.15919771194458,
+  "candle_open_ms": 1793433600000,
+  "mode": "blocked",
+  "status": "open",
+  "confidence": 77,
+  "block_reason": "R:R 0.57 after real stop placement is below 1.5",
   "htf": {}
  }
 ]
