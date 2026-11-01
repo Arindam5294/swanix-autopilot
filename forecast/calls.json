@@ -600,10 +600,12 @@
   "tp2": 97.61654510498046,
   "candle_open_ms": 1793498400000,
   "mode": "blocked",
-  "status": "open",
+  "status": "loss",
   "confidence": 77,
   "block_reason": "R:R 1.28 after real stop placement is below 1.5",
-  "htf": {}
+  "htf": {},
+  "resolved_at": 1793535599,
+  "r": -1.0
  },
  {
   "id": "ETHUSDT-1h-LONG-1793505575",
@@ -655,13 +657,32 @@
   "tp2": 97.52903594970704,
   "candle_open_ms": 1793520000000,
   "mode": "blocked",
-  "status": "open",
+  "status": "loss",
   "confidence": 79,
   "block_reason": "LONG blocked: trend is down (4h down, 1d down, 1h down)",
   "htf": {
    "4h": "down",
    "1d": "down",
    "1h": "down"
-  }
+  },
+  "resolved_at": 1793535599,
+  "r": -1.0
+ },
+ {
+  "id": "ETHUSDT-1h-LONG-1793541603",
+  "ts": 1793541603,
+  "sym": "ETHUSDT",
+  "tf": "1h",
+  "side": "LONG",
+  "entry": 2267.99,
+  "sl": 2252.4311428571427,
+  "tp1": 2277.81162109375,
+  "tp2": 2282.0793701171874,
+  "candle_open_ms": 1793534400000,
+  "mode": "blocked",
+  "status": "open",
+  "confidence": 87,
+  "block_reason": "R:R 0.26 after real stop placement is below 1.5",
+  "htf": {}
  }
 ]
