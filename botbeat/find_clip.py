@@ -37,6 +37,9 @@ DEFAULT_REGIONS = [
 ]
 REGIONS = CFG.get("regions", DEFAULT_REGIONS)
 
+# Track if the Data API is quota'd/rate-limited so we stop hammering it for the run.
+API_QUOTA_HIT = False
+
 def is_youtube(url: str) -> bool:
     return any(d in url for d in YT_DOMAINS)
 
@@ -86,9 +89,12 @@ def q_topic(line):
 def youtube_search_region(region):
     """Search the YouTube Data API for one region (regionCode + relevanceLanguage).
     Returns list of candidate dicts with 'region' tag."""
+    global API_QUOTA_HIT
     key = os.environ.get("YOUTUBE_API_KEY")
     if not key:
         print("find_clip: YOUTUBE_API_KEY missing, using yt-dlp fallback", file=sys.stderr); return []
+    if API_QUOTA_HIT:
+        print("find_clip: API quota eaten this run, using yt-dlp fallback", file=sys.stderr); return []
     code = region.get("code", "US")
     lang = region.get("lang", "en")
     days = max(CFG["max_age_days"], CFG.get("pool_days", 180))
@@ -102,6 +108,10 @@ def youtube_search_region(region):
         try:
             ids += [i["id"]["videoId"] for i in get("https://www.googleapis.com/youtube/v3/search?" + p).get("items", [])]
         except Exception as e:
+            if "429" in str(e):
+                API_QUOTA_HIT = True
+                print(f"find_clip: region {code} search hit HTTP 429 (quota) -> switching to fallback", file=sys.stderr)
+                return []
             print(f"find_clip: region {code} search '{q}' failed: {e}", file=sys.stderr)
     ids = list(dict.fromkeys(ids))
     out = []
@@ -123,19 +133,20 @@ def youtube_search_region(region):
     return out
 
 def youtube_dlp_search_region(region):
-    """No-API-quota fallback: yt-dlp search scoped to a region. The trending feed URL is
-    deprecated (redirects to home), so we search with the region's relevanceLanguage and a
-    region-restricted geo hint. Returns candidate dicts tagged with 'region'."""
+    """No-API-quota fallback: yt-dlp search scoped to a region. Fetches real metadata
+    (not flat-playlist) so view_count is populated, otherwise every clip would fail the
+    min_views filter and nothing would ever post. Returns candidate dicts tagged 'region'."""
     code = region.get("code", "US")
     lang = region.get("lang", "en")
     term = CFG["search_terms"][0]
     out = []
     try:
-        # yt-dlp search returns the top ~30 for the fixed, in that region's language.
-        cmd = ["yt-dlp", "--flat-playlist", "-J", "--no-warnings", "--playlist-items", "1-30",
+        # NOTE: intentionally NOT --flat-playlist, so yt-dlp resolves each video's real
+        # view_count. --flat-playlist returns None views which killed the filter before.
+        cmd = ["yt-dlp", "-J", "--no-warnings", "--ignore-errors", "--playlist-items", "1-20",
                "--extractor-args", "youtube:player_client=default",
-               "ytsearch30:" + term]
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+               "ytsearch20:" + term]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
         if r.returncode:
             print(f"find_clip: region {code} yt-dlp search failed: {r.stderr.strip()[:200]}", file=sys.stderr)
             return []
@@ -147,7 +158,7 @@ def youtube_dlp_search_region(region):
                         "title": e.get("title") or "", "desc": "",
                         "views": e.get("view_count") or 0,
                         "uploader": e.get("channel") or e.get("uploader") or "",
-                        "published": e.get("timestamp") and datetime.datetime.utcfromtimestamp(e["timestamp"]).strftime("%Y-%m-%dT%H:%M:%SZ") or "",
+                        "published": (e.get("timestamp") and datetime.datetime.utcfromtimestamp(e["timestamp"]).strftime("%Y-%m-%dT%H:%M:%SZ")) or "",
                         "region": code, "source": "ytdlp-search"})
         print(f"find_clip: fallback region {code}: {len(out)} results for '{term}'", file=sys.stderr)
         return out
@@ -221,7 +232,21 @@ def main():
             reg = m.pop("region", "?")
             m["source"] = f"youtube-search:{name}:region-{reg}"
             print(json.dumps(m)); return
-    print("find_clip: nothing new passed the filters (US + India)", file=sys.stderr)
+
+    # LAST RESORT: still nothing passed the strict filters. Grab the single highest-viewed,
+    # non-banned, not-already-used clip from the whole pool (skip only banned words and dupes).
+    # This guarantees the bot posts SOMETHING every scheduled run instead of going silent.
+    fallback = sorted([m for m in pool
+                       if vid_id(m["url"]) not in USED and not bad(m["title"] + m["desc"])],
+                      key=lambda x: -x["views"])
+    print(f"find_clip: last-resort tier: {len(fallback)} candidates", file=sys.stderr)
+    if fallback:
+        m = fallback[0]
+        reg = m.pop("region", "?")
+        m["source"] = f"youtube-search:last-resort:region-{reg}"
+        print(json.dumps(m)); return
+
+    print(f"find_clip: nothing new passed the filters (US + India) — {len(pool)} pool entries, {len(filtered)} filtered", file=sys.stderr)
 
 if __name__ == "__main__":
     main()
