@@ -1,0 +1,165 @@
+name: GTA VI Clips Shorts (@GTAviclipxx) - finds GTA 6 clips, edits, uploads
+on:
+  schedule:
+    - cron: "30 2,7,12,16 * * *"   # 8 AM, 1 PM, 6 PM, 10 PM IST
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Optional: make a GTA Short from this exact link (YouTube)"
+        required: false
+      topic:
+        description: "(unused for GTA, leave blank)"
+        required: false
+      preview:
+        description: "Preview only: send the Short to Telegram, do NOT upload to YouTube"
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency: { group: gtaclips, cancel-in-progress: false }
+jobs:
+  short:
+    if: ${{ github.event_name != 'schedule' || vars.GTA_CRON == 'true' }}
+    # Set repo variable BOTBEAT_RUNNER=self-hosted once a runner on your home PC (Linux + Docker) is online:
+    # home internet is not bot-blocked by YouTube, so real footage downloads every time.
+    runs-on: ${{ vars.BOTBEAT_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 45
+    services:
+      pot:   # free YouTube "proof of origin" token helper for yt-dlp
+        image: brainicism/bgutil-ytdlp-pot-provider
+        ports: ["4416:4416"]
+    defaults: { run: { working-directory: gtaclips } }
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}        # optional: Twitch top GTA VI clips
+      TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+      KICK_CLIENT_ID: ${{ secrets.KICK_CLIENT_ID }}            # optional: Kick live GTA VI streams
+      KICK_CLIENT_SECRET: ${{ secrets.KICK_CLIENT_SECRET }}
+      BOTBEAT_VOICE: edge   # GTA channel uses its own edge-tts voice, not the Botbeat narrator
+      YTDLP_HOME_PROXY: ${{ secrets.YTDLP_HOME_PROXY }}
+    steps:
+      - uses: actions/checkout@v5
+        with: { ref: "${{ github.ref_name }}" }   # newest code + used.json, even when an old run is re-run
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core && pip install -q -U --pre "yt-dlp[default]" bgutil-ytdlp-pot-provider edge-tts gtts pillow
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: npm, cache-dependency-path: botbeat/remotion/package-lock.json }
+      - name: Remotion animated overlay (optional - make_short.py falls back to the PIL overlay if this fails)
+        continue-on-error: true
+        working-directory: botbeat/remotion
+        run: npm ci --no-audit --no-fund && npx remotion browser ensure
+      - name: Optional cookies (only if YouTube/X block downloads)
+        env: { YT_COOKIES: "${{ secrets.YT_COOKIES }}" }
+        run: python fix_cookies.py || true
+      - name: Pick a viral clip
+        id: pick
+        env: { MANUAL_URL: "${{ github.event.inputs.url }}", TOPIC: "${{ github.event.inputs.topic }}" }
+        run: |
+          if [ -n "$MANUAL_URL" ] && [ -n "$TOPIC" ]; then echo "$MANUAL_URL #trend #general topic=${TOPIC// /_}" >> queue.txt
+          elif [ -n "$MANUAL_URL" ]; then echo "$MANUAL_URL" >> queue.txt; fi
+          CLIP=$(python find_clip.py || true)
+          echo "$CLIP"
+          { echo "clip<<EOF"; echo "$CLIP"; echo "EOF"; } >> "$GITHUB_OUTPUT"
+      - name: Tell you when no clip qualified (so it never fails silently)
+        if: steps.pick.outputs.clip == ''
+        run: |
+          python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram('GTA VI Clips: no new viral clip passed the filters this run. Send the bot a link to force one.')" || true
+      - uses: denoland/setup-deno@v2
+      - name: Free Cloudflare WARP proxy (backup route if YouTube blocks GitHub)
+        if: steps.pick.outputs.clip != ''
+        continue-on-error: true
+        run: |
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq cloudflare-warp
+          sleep 3
+          warp-cli --accept-tos registration new
+          warp-cli --accept-tos mode proxy
+          warp-cli --accept-tos connect
+          sleep 8
+          if curl -s --max-time 15 -x socks5h://127.0.0.1:40000 https://www.cloudflare.com/cdn-cgi/trace | grep -q "warp=on"; then echo "YTDLP_PROXY=socks5://127.0.0.1:40000" >> "$GITHUB_ENV"; echo "WARP on"; fi
+      - name: Free disk + add 8 GB swap (stops GitHub killing the runner when RAM runs out, exit 143)
+        if: steps.pick.outputs.clip != ''
+        continue-on-error: true
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo fallocate -l 8G /botbeat.swap && sudo chmod 600 /botbeat.swap && sudo mkswap /botbeat.swap && sudo swapon /botbeat.swap
+          free -h; df -h /
+      - name: Make the Short
+        id: make
+        if: steps.pick.outputs.clip != ''
+        env: { CLIP: "${{ steps.pick.outputs.clip }}" }
+        run: |
+          set +e
+          # live log (tee) so a killed run still shows how far it got
+          python -u make_short.py "$CLIP" 2>&1 | tee err.txt; RC=${PIPESTATUS[0]}
+          set -e
+          if [ $RC -eq 0 ]; then echo "made=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "made=false" >> "$GITHUB_OUTPUT"
+          if [ $RC -eq 3 ]; then
+            # YouTube bot wall: no low-quality substitute is made. The clip stays unused and is retried next run.
+            python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "GTA VI Clips: YouTube blocked the download from GitHub's servers, so no Short was made this run (clip kept for the next run). Permanent fix: YT_COOKIES, YTDLP_HOME_PROXY, or BOTBEAT_RUNNER=self-hosted." || true
+            echo "::warning::YouTube bot wall: skipped this run, clip retried next run"
+            exit 0
+          fi
+          if [ $RC -eq 5 ]; then
+            # trend clip was a photo slideshow: never retry it, no Short this run
+            python -c "import json,sys; f='used.json'; u=json.load(open(f)); u.append(json.loads(sys.argv[1])['url']); json.dump(u,open(f,'w'))" "$CLIP"
+            python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram('GTA VI Clips: the trend clip was a photo slideshow, so it was skipped (no fake-footage Short).')" || true
+            exit 0
+          fi
+          if [ $RC -eq 6 ]; then
+            # the AI wrote a refusal/junk instead of a script: drop this clip for good, never upload it
+            python -c "import json,sys; f='used.json'; u=json.load(open(f)); u.append(json.loads(sys.argv[1])['url']); json.dump(u,open(f,'w'))" "$CLIP"
+            python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "GTA VI Clips: the script came back as an AI refusal, so the clip was dropped and nothing was uploaded. $(tail -c 200 err.txt)" || true
+            exit 0
+          fi
+          python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "GTA VI Clips failed: $(tail -c 300 err.txt)" || true
+          exit 1
+      - name: Preview only - send to Telegram, no upload
+        if: steps.make.outputs.made == 'true' && github.event.inputs.preview == 'true'
+        env: { BOTBEAT_PREVIEW: "1" }
+        run: python send_short.py
+      - name: Lock clip as used before uploading (no duplicates from re-runs/cancels/overlaps)
+        id: lock
+        if: steps.make.outputs.made == 'true' && github.event.inputs.preview != 'true'
+        run: |
+          set +e; python mark_used.py; RC=$?
+          if [ $RC -eq 4 ]; then echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::warning::clip already posted, upload skipped"; exit 0; fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+      - name: Upload to YouTube (API, then scheduled, then browser)
+        if: steps.lock.outputs.ok == 'true'
+        continue-on-error: true
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          GTA_YT_REFRESH_TOKEN: ${{ secrets.GTA_YT_REFRESH_TOKEN }}
+        run: |
+          if [ -f cookies.txt ]; then pip install -q playwright && python -m playwright install --with-deps chromium > /dev/null 2>&1 || true; fi
+          if python upload_youtube.py; then
+            echo uploaded
+          else
+            echo "all routes failed - diagnosing"; python diagnose_youtube.py || true
+            echo "all routes failed, Telegram gets the file"
+          fi
+      - uses: actions/upload-artifact@v5
+        if: always() && hashFiles('gtaclips/out/upload_error.png') != ''
+        with: { name: upload-error-screenshot, path: gtaclips/out/upload_error.png, retention-days: 7 }
+      - name: Send it to you
+        if: steps.lock.outputs.ok == 'true'
+        run: python send_short.py
+      - uses: actions/upload-artifact@v5
+        if: steps.make.outputs.made == 'true'
+        with: { name: gta-short, path: gtaclips/out/, retention-days: 7 }
+      - name: Remember used clips
+        if: always() && github.event.inputs.preview != 'true'
+        run: |
+          rm -f cookies.txt
+          # race-safe save: keeps links Studio queued while this ran (Studio is the only Telegram reader now)
+          python ../common/gitsave.py "gtaclips: used clips" --union gtaclips/used.json --mirror gtaclips/upload_state.json --lines gtaclips/queue.txt
