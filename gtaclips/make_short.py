@@ -111,6 +111,12 @@ def check_script(s):
         print("Voiceover too short to be a real script. Not making a Short from it.", file=sys.stderr); sys.exit(6)
     return s
 
+import datetime as _dt
+# GTA 6 unlocks at midnight local time on 19 Nov 2026, first in New Zealand = 2026-11-18 11:00 UTC (16:30 IST).
+LAUNCHED = _dt.datetime.now(_dt.timezone.utc) >= _dt.datetime(2026, 11, 18, 11, tzinfo=_dt.timezone.utc)
+LAUNCH_FACT = ("GTA 6 is out: it unlocks at midnight local time on November 19, 2026 (New Zealand first) on PS5 and Xbox Series X|S (Rockstar confirmed). Some countries may still be waiting." if LAUNCHED else
+               "GTA 6 launches November 19, 2026 on PS5 and Xbox Series X|S (Rockstar confirmed). It is NOT out yet, so nobody is playing it.")
+
 def script(clip):
     """GTA VI Clips: commentary that ADDS value on top of the credited clip (YouTube reused-content safe)."""
     prompt = f"""You write YouTube Shorts for GTA VI Clips (@GTAviclipxx), a fan channel that reposts the best GTA 6 moments
@@ -118,7 +124,7 @@ with its own hype-but-trustworthy English commentary. Fan page: never say or imp
 Source clip title: {clip['title']}
 Source description: {clip['desc'][:1200]}
 Creator: {clip.get('uploader','')}  Views: {clip.get('views',0)}
-Facts you may state: only what the title/description say, plus: GTA 6 launched November 19, 2026 on PS5 and Xbox Series X|S.
+Facts you may state: only what the title/description say, plus: {LAUNCH_FACT}
 Never invent features, story details, prices, sales numbers or quotes. Never mention leaks, rumors, "play early" tricks or free downloads.
 No story spoilers in the hook or title. Energetic gamer tone, short sentences, no slurs.
 Return ONLY JSON with keys:
@@ -135,6 +141,10 @@ What was said in this exact moment (auto-captions, may be empty): {clip.get('sai
 Override: "vo" must be ONLY a 12-22 word intro that sets up the moment WITHOUT spoiling it (e.g. "{clip.get('uploader','He')} was NOT ready for what happened next in GTA 6..."),
 because the streamer's real reaction plays right after. Describe only what the captions/title support.
 Title must name the streamer, e.g. "<Streamer> loses it in GTA 6 😭 #shorts". Description credit line: "🎥 <Streamer>'s stream (link below)"."""
+        if not LAUNCHED:
+            prompt += """
+PRE-LAUNCH: the game is not out yet, so this stream is a countdown / hype / talk stream, NOT gameplay.
+Never say or imply they are playing GTA 6. Title and vo must frame it honestly, e.g. "<Streamer>'s GTA 6 hype before launch 😭 #shorts"."""
     pat = HERE / "THUMBNAILS.md"
     if pat.exists():   # weekly outlier study (outliers.py): copy what's winning on GTA channels right now
         prompt += "\nTitle/hook patterns that are beating other GTA channels this week (follow them, stay honest):\n" + pat.read_text()[:1800]

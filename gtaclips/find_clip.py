@@ -370,6 +370,9 @@ def main():
     pool += twitch_clips() + twitch_lives() + kick_lives() + kick_clips()
     if not CFG.get("allow_live", True): pool = [m for m in pool if m.get("kind") != "live"]
     pool = [m for m in pool if m["url"] not in EXCLUDE and not (NO_YT and is_youtube(m["url"]))]
+    # Before launch (NZ midnight 19 Nov 2026 = 18 Nov 11:00 UTC) nobody is playing GTA 6: live "GTA VI" streams are waiting/donation streams, not footage.
+    if datetime.datetime.now(datetime.timezone.utc) < datetime.datetime(2026, 11, 18, 11, tzinfo=datetime.timezone.utc):
+        pool = [m for m in pool if not (m.get("kind") == "live" and m.get("region") in ("TW", "KICK"))]
     if NO_YT: print(f"find_clip: YouTube blocked -> Twitch/Kick only, {len(pool)} in pool", file=sys.stderr)
 
     # Dedupe by url, keep highest views version.

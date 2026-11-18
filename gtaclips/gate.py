@@ -44,6 +44,7 @@ def frames(dur, n=6):
     return out
 
 BRIEF = """You are a strict, fresh reviewer for a GTA 6 fan channel. You have NOT seen the script or the editor's notes.
+Confirmed fact (Rockstar, Nov 2026): GTA 6's release date is November 19, 2026 on PS5 and Xbox Series X|S, unlocking at midnight local time (New Zealand first, from 18 Nov 11:00 UTC). Stating it is correct, and gameplay posted after that moment can be real.
 Look at the frames (first frame first) and the post copy. Say YES only if ALL hold:
 - The first frame grabs attention (action, a face reacting, or bold text) - no blank/loading/menu screen.
 - On-screen text is readable and NOT under the right-side buttons or the bottom 15% of a vertical video.
