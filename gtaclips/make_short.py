@@ -451,10 +451,10 @@ def main():
             sh("ffmpeg", "-v", "error", "-y", "-i", str(src), "-i", str(OUT / "short.mp4"), "-filter_complex", xf,
                "-map", "[xv]", "-map", "1:a?", "-t", str(total), "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
                "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(OUT / "short_x.mp4"), timeout=900)
-            send_x(OUT / "short_x.mp4", s, clip)
+            # send_short.py now sends the X video WITH the YouTube link + ready captions after upload
         except Exception as e:
             print("x version skipped:", str(e)[:300], file=sys.stderr)
-    s.update({"clean": clean, "mode": clip.get("mode", "ai"), "topic": clip.get("topic", ""), "source_url": clip["url"], "kind": kind, "moment": clip.get("moment", ""), "moment_at": clip.get("moment_at", ""), "source_views": clip.get("views", 0), "seconds": round(total, 1), "layout": "split" if box else "frame"})
+    s.update({"clean": clean, "mode": clip.get("mode", "ai"), "topic": clip.get("topic", ""), "source_url": clip["url"], "kind": kind, "moment": clip.get("moment", ""), "moment_at": clip.get("moment_at", ""), "source_views": clip.get("views", 0), "uploader": clip.get("uploader", ""), "lang": "hi" if HINDI else "en", "must_include": (campaign.match(" ".join(str(clip.get(k, "")) for k in ("uploader", "title", "url"))) or {}).get("must_include", ""), "seconds": round(total, 1), "layout": "split" if box else "frame"})
     json.dump(s, open(OUT / "metadata.json", "w"), indent=1)
     print("made", OUT / "short.mp4", round(total, 1), "s")
 
