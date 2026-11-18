@@ -12,7 +12,7 @@ if vid_id(src) in load_used():
     print(f"mark_used: {src} was already posted by another run, skipping upload"); sys.exit(4)
 f = HERE / "used.json"
 used = json.loads(f.read_text()) if f.exists() else []
-used.append(src); f.write_text(json.dumps(used))
+used.append(vid_id(src) if "@" in vid_id(src) else src); f.write_text(json.dumps(used))   # live = slot key
 q = HERE / "queue.txt"
 if q.exists():
     q.write_text("".join(l + "\n" for l in q.read_text().splitlines()

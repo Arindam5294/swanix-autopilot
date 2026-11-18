@@ -33,7 +33,11 @@ def load_used():
         if r.returncode == 0: urls += json.loads(r.stdout)
     except Exception as e:
         print(f"find_clip: couldn't read newest used.json ({e})", file=sys.stderr)
-    return {vid_id(u) for u in urls}
+    def _key(u):
+        if "@" in u: return u                 # already a live slot key, e.g. ID@YYYYMMDDHHn
+        k = vid_id(u)
+        return None if "@" in k else k        # bare live link: never a permanent block (each slot is new footage)
+    return {k for k in map(_key, urls) if k}
 USED = load_used()
 
 YT_DOMAINS = ("youtube.com", "youtu.be", "youtube-nocookie.com")
@@ -379,7 +383,8 @@ def main():
         manual = [l for l in manual if vid_id(l.split()[0]).split("@")[0] == vid_id(mu).split("@")[0]] or [mu]
     for line in manual:                      # links you chose yourself skip the view bar
         url, auto = split_q(line)
-        if vid_id(url) in USED or url in EXCLUDE: continue
+        if vid_id(url) in USED or url in EXCLUDE:
+            print(f"find_clip: {url} was already used (this slot), skipped", file=sys.stderr); continue
         if NO_YT and is_youtube(url): continue
         if any(d in url for d in ("x.com/", "twitter.com/")) and "/status/" in url:
             url = url.split("?")[0].replace("twitter.com/", "x.com/")   # X post: yt-dlp downloads it, no YouTube bot wall
