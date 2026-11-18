@@ -145,6 +145,11 @@ What was said in this exact moment (auto-captions, may be empty): {clip.get('sai
 Override: "vo" must be ONLY a 12-22 word intro that sets up the moment WITHOUT spoiling it (e.g. "{clip.get('uploader','He')} was NOT ready for what happened next in GTA 6..."),
 because the streamer's real reaction plays right after. Describe only what the captions/title support.
 Title must name the streamer, e.g. "<Streamer> loses it in GTA 6 😭 #shorts". Description credit line: "🎥 <Streamer>'s stream (link below)"."""
+        if LAUNCHED:
+            prompt += """
+THE GAME IS RELEASED (worldwide rollout from 2026-11-18 11:00 UTC). Stream titles often still say "early access",
+"play early" or count down to launch: IGNORE that wording. Never write "early access", "play early", "before launch",
+"hours before", "pre-release" or any countdown in hook, vo, title or description. Say they are playing GTA 6 on launch day."""
         if not LAUNCHED:
             prompt += """
 PRE-LAUNCH: the game is not out yet, so this stream is a countdown / hype / talk stream, NOT gameplay.
@@ -169,6 +174,14 @@ HINDI EDITION (Indian audience). Override the language rules above:
     if clip.get("kind") in ("live", "stream", "twitch_clip") or clip.get("moment"): s["_min_words"] = 10
     if re.search(r"\b(leak|leaked|play early|free download|apk)\b", s.get("vo", "") + s.get("title", ""), re.I):
         raise RuntimeError("script mentioned leaks/free downloads")
+    if LAUNCHED:   # belt and braces: the reviewer fails any early-access / countdown framing after launch
+        _fix = [(r"\bearly[- ]access\b", "launch day"), (r"\b(hours|minutes|days) before (the )?(midnight )?(launch|release)\b", "on launch day"),
+                (r"\bbefore (the )?(midnight )?(launch|release)\b", "on launch day"), (r"\bpre[- ]?release\b", "launch day")]
+        for k in ("hook", "vo", "cta", "title", "description"):
+            if isinstance(s.get(k), str):
+                for pat, rep in _fix: s[k] = re.sub(pat, rep, s[k], flags=re.I)
+        if isinstance(s.get("tags"), list):
+            s["tags"] = [t for t in s["tags"] if not re.search(r"early access|before launch|pre[- ]?release", str(t), re.I)]
     at = f" (moment at {clip['moment_at']})" if clip.get("moment_at") else ""
     s["description"] = s.get("description", "").rstrip() + f"\n\nOriginal{' stream' if clip.get('kind') != 'video' else ''}: {clip['url']}{at}"
     return s
