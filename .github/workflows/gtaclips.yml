@@ -9,6 +9,7 @@ on:
     # SKIPPED (saving quota for USA launch): cron "30 15 18 11 *"   # Nov 18  9:00 PM IST = Japan/Korea unlocked 8:30 PM IST
     # SKIPPED (saving quota for USA launch): cron "0 19 18 11 *"    # Nov 19 12:30 AM IST = INDIA unlocked at midnight
     - cron: "0 5 19 11 *"     # Nov 19 10:30 AM IST = USA East unlocks (12 AM ET)
+    - cron: "0 7 19 11 *"     # Nov 19 12:30 PM IST = USA slot 2 (2:30 AM ET, Speed/Kai/xQc deep in their launch streams). Last upload before the 13:30 IST quota reset.
     # AFTER LAUNCH: peak hours (India evening + US evening), from Nov 19 evening
     - cron: "30 12 19-30 11 *"   # 6:00 PM IST  India evening
     # 8:00 PM IST India prime time is now the daily HINDI run (cron "31 14 ..." below)
@@ -83,7 +84,7 @@ jobs:
         run: python fix_cookies.py || true
       - name: Pick a viral clip
         id: pick
-        env: { MANUAL_URL: "${{ github.event.inputs.url }}", TOPIC: "${{ github.event.inputs.topic }}", SKIP_YOUTUBE: "${{ github.event_name == 'schedule' && !startsWith(github.event.schedule, '31 14 ') && '1' || '' }}" }   # scheduled: Twitch/Kick only, saves API quota for uploads
+        env: { MANUAL_URL: "${{ github.event.inputs.url }}", TOPIC: "${{ github.event.inputs.topic }}", SKIP_YOUTUBE: "${{ github.event_name == 'schedule' && !startsWith(github.event.schedule, '31 14 ') && !endsWith(github.event.schedule, ' 19 11 *') && '1' || '' }}" }   # scheduled: Twitch/Kick only, saves API quota for uploads
         run: |
           if [ -n "$MANUAL_URL" ] && [ -n "$TOPIC" ]; then echo "$MANUAL_URL #trend #general topic=${TOPIC// /_}" >> queue.txt
           elif [ -n "$MANUAL_URL" ]; then echo "$MANUAL_URL" >> queue.txt; fi
