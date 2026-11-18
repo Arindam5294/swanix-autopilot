@@ -76,7 +76,7 @@ def get(url):
 
 def api_meta(url):
     """YouTube Data API metadata: never bot-blocked on GitHub (uses YOUTUBE_API_KEY, 1 quota unit)."""
-    key, vid = os.environ.get("YOUTUBE_API_KEY"), vid_id(url)
+    key, vid = os.environ.get("YOUTUBE_API_KEY"), vid_id(url).split("@")[0]   # /live/ ids carry an @hour tag
     if not key or not is_youtube(url) or len(vid) != 11: return None
     try:
         p = urllib.parse.urlencode({"part": "snippet,statistics,liveStreamingDetails,contentDetails", "id": vid, "key": key})
@@ -100,7 +100,9 @@ def meta(url):
         if r.returncode and px:
             print(f"find_clip: lookup blocked, retrying via proxy", file=sys.stderr)
             r = subprocess.run(cmd[:1] + ["--proxy", px] + cmd[1:], capture_output=True, text=True, timeout=120)
-    if r.returncode: return api_meta(url)
+    if r.returncode:
+        print("find_clip: yt-dlp said:", (r.stderr or "")[-400:], file=sys.stderr)
+        return api_meta(url)
     j = json.loads(r.stdout)
     if j.get("live_status") == "is_live" and is_youtube(url) and len(vid_id(url).split("@")[0]) == 11:
         url = "https://www.youtube.com/live/" + vid_id(url).split("@")[0]   # keep the live form so the next run can clip it again

@@ -98,6 +98,7 @@ jobs:
           warp-cli --accept-tos connect
           sleep 8
           if curl -s --max-time 15 -x socks5h://127.0.0.1:40000 https://www.cloudflare.com/cdn-cgi/trace | grep -q "warp=on"; then echo "YTDLP_PROXY=socks5://127.0.0.1:40000" >> "$GITHUB_ENV"; echo "WARP on"; fi
+      - uses: denoland/setup-deno@v2
       - name: Pick a viral clip
         id: pick
         env: { MANUAL_URL: "${{ github.event.inputs.url }}", TOPIC: "${{ github.event.inputs.topic }}", SKIP_YOUTUBE: "${{ github.event_name == 'schedule' && !startsWith(github.event.schedule, '31 14 ') && !endsWith(github.event.schedule, ' 19 11 *') && '1' || '' }}" }   # scheduled: Twitch/Kick only, saves API quota for uploads
@@ -111,7 +112,6 @@ jobs:
         if: steps.pick.outputs.clip == ''
         run: |
           python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram('GTA VI Clips: no new viral clip passed the filters this run. Send the bot a link to force one.')" || true
-      - uses: denoland/setup-deno@v2
       - name: Free disk + add 8 GB swap (stops GitHub killing the runner when RAM runs out, exit 143)
         if: steps.pick.outputs.clip != ''
         continue-on-error: true
