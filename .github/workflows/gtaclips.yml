@@ -102,10 +102,25 @@ jobs:
           python -u make_short.py "$CLIP" 2>&1 | tee err.txt; RC=${PIPESTATUS[0]}
           set -e
           if [ $RC -eq 0 ]; then echo "made=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          # YouTube blocked this runner: don't stop, try up to 2 Twitch/Kick clips instead (they download fine from GitHub).
+          set +e
+          TRIED=$(python -c "import json,sys; print(json.loads(sys.argv[1])['url'])" "$CLIP" 2>/dev/null || true)
+          for TRY in 1 2; do
+            [ $RC -eq 3 ] || break
+            echo "::warning::YouTube bot wall -> trying a Twitch/Kick clip instead (attempt $TRY)"
+            NEXT=$(SKIP_YOUTUBE=1 EXCLUDE_URLS="$TRIED" python find_clip.py || true)
+            [ -n "$NEXT" ] || { echo "no Twitch/Kick clip available"; break; }
+            echo "$NEXT"
+            TRIED="$TRIED $(python -c "import json,sys; print(json.loads(sys.argv[1])['url'])" "$NEXT")"
+            CLIP="$NEXT"
+            python -u make_short.py "$CLIP" 2>&1 | tee err.txt; RC=${PIPESTATUS[0]}
+            if [ $RC -eq 0 ]; then echo "made=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          done
+          set -e
           echo "made=false" >> "$GITHUB_OUTPUT"
           if [ $RC -eq 3 ]; then
             # YouTube bot wall: no low-quality substitute is made. The clip stays unused and is retried next run.
-            python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "GTA VI Clips: YouTube blocked the download from GitHub's servers, so no Short was made this run (clip kept for the next run). Permanent fix: YT_COOKIES, YTDLP_HOME_PROXY, or BOTBEAT_RUNNER=self-hosted." || true
+            python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "GTA VI Clips: YouTube blocked the download from GitHub's servers and no Twitch/Kick clip worked either, so no Short was made this run (clip kept for the next run). Permanent fix: YT_COOKIES, YTDLP_HOME_PROXY, or BOTBEAT_RUNNER=self-hosted." || true
             echo "::warning::YouTube bot wall: skipped this run, clip retried next run"
             exit 0
           fi

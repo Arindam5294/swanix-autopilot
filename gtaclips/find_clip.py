@@ -11,6 +11,9 @@ HERE = pathlib.Path(__file__).resolve().parent
 CFG = json.load(open(HERE / "config.json"))
 USED_F = HERE / "used.json"
 URL_RE = re.compile(r"https?://\S+")
+# SKIP_YOUTUBE=1: YouTube blocked the runner this run, so only Twitch/Kick clips are picked.
+NO_YT = os.environ.get("SKIP_YOUTUBE") == "1"
+EXCLUDE = {u for u in os.environ.get("EXCLUDE_URLS", "").split() if u}
 ID_RE = re.compile(r"(?:v=|youtu\.be/|shorts/|embed/|live/)([A-Za-z0-9_-]{11})")
 def vid_id(url):
     if url and ("twitch.tv/" in url or "kick.com/" in url) and "/clips/" not in url and "clip" not in url.split("/")[2]:
@@ -337,7 +340,8 @@ def main():
     manual = queue_links()                   # links you send the bot land here (studio/run.py queues them)
     for line in manual:                      # links you chose yourself skip the view bar
         url, auto = split_q(line)
-        if vid_id(url) in USED: continue
+        if vid_id(url) in USED or url in EXCLUDE: continue
+        if NO_YT and is_youtube(url): continue
         if not is_youtube(url) and "twitch.tv" not in url and "kick.com" not in url:
             print(f"find_clip: skipping non-YouTube URL: {url}", file=sys.stderr)
             continue
@@ -357,7 +361,7 @@ def main():
 
     # Multi-region discovery: merge pools from every configured region.
     pool = []
-    for region in REGIONS:
+    for region in ([] if NO_YT else REGIONS):
         hits = youtube_search_region(region)
         if not hits:                       # API miss -> use no-API fallback for this region
             hits = youtube_dlp_search_region(region)
@@ -365,6 +369,8 @@ def main():
 
     pool += twitch_clips() + twitch_lives() + kick_lives() + kick_clips()
     if not CFG.get("allow_live", True): pool = [m for m in pool if m.get("kind") != "live"]
+    pool = [m for m in pool if m["url"] not in EXCLUDE and not (NO_YT and is_youtube(m["url"]))]
+    if NO_YT: print(f"find_clip: YouTube blocked -> Twitch/Kick only, {len(pool)} in pool", file=sys.stderr)
 
     # Dedupe by url, keep highest views version.
     by_url = {}
@@ -401,7 +407,7 @@ def main():
                 if vid_id(m["url"]) not in USED and not bad(m["title"] + m["desc"]) and (on_topic(m["title"]) or m.get("region") in ("TW", "KICK"))]
     print(f"find_clip: last-resort tier: {len(fallback)} candidates", file=sys.stderr)
     if fallback:
-        m = fallback[0]
+        m = max(fallback, key=lambda x: x.get("views", 0))
         reg = m.pop("region", "?")
         m["source"] = f"youtube-search:last-resort:region-{reg}"
         print(json.dumps(m)); return
