@@ -332,7 +332,11 @@ def main():
     clip = json.loads(sys.argv[1])
     shutil.rmtree(WORK, ignore_errors=True); WORK.mkdir(parents=True); OUT.mkdir(exist_ok=True)
     kind = clip.get("kind", "video")
-    if ("twitch.tv" in clip["url"] or "kick.com" in clip["url"]) and kind != "live": kind = clip["kind"] = "twitch_clip"
+    u = clip["url"].split("?")[0].rstrip("/")
+    if ("twitch.tv" in u or "kick.com" in u) and kind != "live":
+        # a bare channel link (twitch.tv/name) is a LIVE stream: record it, never "download" it (that never ends)
+        is_live = "/clip/" not in u and "/videos/" not in u and "clips.twitch.tv" not in u and len(u.split("/")) <= 4
+        kind = clip["kind"] = "live" if is_live else "twitch_clip"
     try:
         if kind == "live":
             src = moments.record_live(clip["url"], WORK, CFG.get("live_record_seconds", 420))
