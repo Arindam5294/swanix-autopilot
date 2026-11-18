@@ -4,7 +4,7 @@ hook bar on top, the real footage in the middle, word-timed captions, pro Englis
 (signature local OmniVoice narrator, edge-tts/gTTS as backups).
 Usage: python make_short.py '<json from find_clip.py>'  -> writes out/short.mp4 + out/metadata.json"""
 import json, os, sys, re, asyncio, pathlib, subprocess, shutil, hashlib
-import moments
+import moments, layout, captions, campaign
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "common"))
 from ai import ask  # same free AI chain: Gemini -> Groq -> OpenRouter
 HERE = pathlib.Path(__file__).resolve().parent
@@ -135,6 +135,9 @@ What was said in this exact moment (auto-captions, may be empty): {clip.get('sai
 Override: "vo" must be ONLY a 12-22 word intro that sets up the moment WITHOUT spoiling it (e.g. "{clip.get('uploader','He')} was NOT ready for what happened next in GTA 6..."),
 because the streamer's real reaction plays right after. Describe only what the captions/title support.
 Title must name the streamer, e.g. "<Streamer> loses it in GTA 6 😭 #shorts". Description credit line: "🎥 <Streamer>'s stream (link below)"."""
+    pat = HERE / "THUMBNAILS.md"
+    if pat.exists():   # weekly outlier study (outliers.py): copy what's winning on GTA channels right now
+        prompt += "\nTitle/hook patterns that are beating other GTA channels this week (follow them, stay honest):\n" + pat.read_text()[:1800]
     txt = ask(prompt + "\nAnswer with valid JSON only.", min_len=200)
     s = json.loads(re.search(r"\{.*\}", txt, re.S).group(0))
     if clip.get("kind") in ("live", "stream", "twitch_clip") or clip.get("moment"): s["_min_words"] = 10
@@ -332,7 +335,7 @@ def main():
         print("This trend clip is a photo slideshow, not real footage. Skipping it.", file=sys.stderr); sys.exit(5)
     if not (clip.get("title") or "").strip():
         print("Clip has no title/description (metadata lookup failed). Skipping, clip retried next run.", file=sys.stderr); sys.exit(3)
-    s = check_script(script(clip))
+    s = campaign.apply(check_script(script(clip)), clip)   # paid clipping campaign? add its credit/#ad/tags
     words = asyncio.run(tts(s["vo"], str(WORK / "vo.mp3")))
     vo_len = duration(WORK / "vo.mp3")
     moment = kind in ("live", "stream", "twitch_clip") or clip.get("moment")
@@ -345,24 +348,45 @@ def main():
         segs = pick_segments(src, total)
     BG = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=28:5,eq=brightness=-0.25"
     FG = "scale=1080:-2:flags=lanczos,crop=1080:'min(ih,1000)'"
+    # Playbook step 6: streams with a webcam box get facecam on top, gameplay below. Everything else keeps the blur frame.
+    box = None
+    if moment and CFG.get("split_layout", True):
+        try:
+            vw, vh = map(int, sh("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", str(src)).strip().split(","))
+            if vw > vh: box = layout.find_facecam(src)
+        except Exception as e:
+            print("layout: skipped:", e, file=sys.stderr)
     fc, L = "", []
     for i, (ss, ln) in enumerate(segs):
-        fc += (f"[0:v]trim=start={ss}:duration={ln},setpts=PTS-STARTPTS,fps={FPS},split[a{i}][b{i}];"
-               f"[a{i}]{BG}[bg{i}];[b{i}]{FG}[fg{i}];[bg{i}][fg{i}]overlay=0:(H-h)/2,setsar=1[s{i}];")
+        if box:
+            fc += f"[0:v]trim=start={ss}:duration={ln},setpts=PTS-STARTPTS,fps={FPS}[t{i}];" + layout.split_filter(f"[t{i}]", f"s{i}", box)
+        else:
+            fc += (f"[0:v]trim=start={ss}:duration={ln},setpts=PTS-STARTPTS,fps={FPS},split[a{i}][b{i}];"
+                   f"[a{i}]{BG}[bg{i}];[b{i}]{FG}[fg{i}];[bg{i}][fg{i}]overlay=0:(H-h)/2,setsar=1[s{i}];")
         L.append(f"[s{i}]")
     fc += "".join(L) + f"concat=n={len(segs)}:v=1:a=0,trim=duration={total}[base];"
-    bedvol = f"volume='if(lt(t,{vo_len+0.3:.2f}),0.22,1.0)':eval=frame" if moment else "volume=0.12"
-    fc += f"[base][1:v]overlay=0:0[v];[2:a]adelay=150|150,volume=1.6[vo];[0:a]{bedvol},atrim=0:{total}[bed];[vo][bed]amix=inputs=2:duration=first:normalize=0,apad,atrim=0:{total},loudnorm=I=-15[a]"
+    # Voice clash fix: while the narrator talks, the original audio is muffled (speech filtered out, only low rumble/beat
+    # stays), so two voices never talk over each other. When the narrator stops, the original fades back in at full.
+    E = vo_len + 0.25
+    duck = (f"[0:a]asplit=2[o1][o2];"
+            f"[o1]lowpass=f=280,lowpass=f=280,volume='0.5*(1-clip((t-{E:.2f})/0.4,0,1))':eval=frame[m];"
+            f"[o2]volume='{1.0 if moment else 0.8}*clip((t-{E:.2f})/0.4,0,1)':eval=frame[f];"
+            f"[m][f]amix=inputs=2:normalize=0,atrim=0:{total}[bed];")
+    fc += f"[base][1:v]overlay=0:0[v];[2:a]adelay=150|150,volume=1.6,apad[vo];{duck}[vo][bed]amix=inputs=2:duration=shortest:normalize=0,atrim=0:{total},loudnorm=I=-15[a]"
     credit = f"clip: {clip.get('uploader') or 'source'}"
     ov = remotion_overlay(words, s["hook"], s["cta"], total, credit) or overlay(words, s["hook"], s["cta"], total, credit)
     has_audio = "audio" in sh("ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(src))
     if not has_audio:
-        fc = fc.replace(f"[0:a]{bedvol},atrim=0:{total}[bed];[vo][bed]amix=inputs=2:duration=first:normalize=0,apad", "[vo]apad")
+        fc = fc.replace(f"{duck}[vo][bed]amix=inputs=2:duration=shortest:normalize=0,", "[vo]")
     sh("ffmpeg", "-v", "error", "-y", "-i", str(src), "-framerate", str(FPS), "-i", str(ov / "%05d.png"), "-i", str(WORK / "vo.mp3"),
        "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(total), "-r", str(FPS), "-c:v", "libx264", "-preset", "veryfast",
        "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(WORK / "short.mp4"), timeout=1500)
-    shutil.copy(WORK / "short.mp4", OUT / "short.mp4")
-    s.update({"mode": clip.get("mode", "ai"), "topic": clip.get("topic", ""), "source_url": clip["url"], "kind": kind, "moment": clip.get("moment", ""), "moment_at": clip.get("moment_at", ""), "source_views": clip.get("views", 0), "seconds": round(total, 1)})
+    final = WORK / "short.mp4"
+    # Playbook step 6: word-by-word captions of what the streamer says after the intro (narrator words are already captioned)
+    if moment and CFG.get("streamer_captions", True) and has_audio:
+        if captions.burn(final, WORK / "short_cap.mp4", start_after=E, y=CFG.get("caption_y", 1180)): final = WORK / "short_cap.mp4"
+    shutil.copy(final, OUT / "short.mp4")
+    s.update({"mode": clip.get("mode", "ai"), "topic": clip.get("topic", ""), "source_url": clip["url"], "kind": kind, "moment": clip.get("moment", ""), "moment_at": clip.get("moment_at", ""), "source_views": clip.get("views", 0), "seconds": round(total, 1), "layout": "split" if box else "frame"})
     json.dump(s, open(OUT / "metadata.json", "w"), indent=1)
     print("made", OUT / "short.mp4", round(total, 1), "s")
 

@@ -1,0 +1,71 @@
+name: GTA VI Clips - daily best-clips episode (16:9, YouTube)
+on:
+  schedule:
+    - cron: "0 15 * * *"   # 8:30 PM IST, gated by repo variable GTA_EPISODE_CRON=true
+  workflow_dispatch:
+    inputs:
+      preview:
+        description: "Preview only: send to Telegram, do NOT upload"
+        type: boolean
+        default: true
+permissions: { contents: write }
+concurrency: { group: gta-episode, cancel-in-progress: false }
+jobs:
+  episode:
+    if: ${{ github.event_name != 'schedule' || vars.GTA_EPISODE_CRON == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults: { run: { working-directory: gtaclips } }
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+      TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core && pip install -q -U "yt-dlp[default]" pillow
+      - name: Build the episode
+        id: ep
+        run: |
+          set +e; python episode.py; RC=$?; set -e
+          if [ $RC -eq 0 ]; then echo "made=true" >> "$GITHUB_OUTPUT"; else
+            python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram('GTA episode: not enough fresh Twitch clips today (needs TWITCH_CLIENT_ID/SECRET).')" || true; fi
+      - name: Gauntlet review
+        id: gate
+        if: steps.ep.outputs.made == 'true'
+        run: |
+          set +e; python gate.py out_ep/episode.mp4 out_ep/metadata.json; RC=$?; set -e
+          if [ $RC -eq 0 ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else
+            python -c "import sys,json; sys.path.insert(0,'../common'); from notify import telegram; g=json.load(open('out_ep/gate.json')); telegram('GTA episode: reviewer said NO: ' + '; '.join(g.get('faults',[])))" || true; fi
+      - name: Upload to YouTube
+        if: steps.gate.outputs.ok == 'true' && github.event.inputs.preview != 'true'
+        continue-on-error: true
+        env:
+          UPLOAD_DIR: out_ep
+          UPLOAD_FILE: episode.mp4
+          GTA_YT_CLIENT_ID: ${{ secrets.GTA_YT_CLIENT_ID }}
+          GTA_YT_CLIENT_SECRET: ${{ secrets.GTA_YT_CLIENT_SECRET }}
+          GTA_YT_REFRESH_TOKEN: ${{ secrets.GTA_YT_REFRESH_TOKEN }}
+        run: python upload_youtube.py
+      - name: Tell you
+        if: steps.ep.outputs.made == 'true'
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+          sys.path.insert(0, "../common"); from notify import telegram
+          o = pathlib.Path("out_ep"); m = json.loads((o / "metadata.json").read_text())
+          link = (o / "youtube_link.txt").read_text().strip() if (o / "youtube_link.txt").exists() else "not uploaded (preview, or see run log)"
+          notes = (o / "upload_notes.txt").read_text() if (o / "upload_notes.txt").exists() else ""
+          telegram(f"📺 GTA daily episode ({m['seconds']/60:.1f} min): {link}\n\n{m['title']}\n\n{m['description'][:2500]}\n{notes[:600]}")
+          PY
+      - uses: actions/upload-artifact@v5
+        if: steps.ep.outputs.made == 'true'
+        with: { name: gta-episode, path: gtaclips/out_ep/, retention-days: 5 }
+      - if: steps.gate.outputs.ok == 'true' && github.event.inputs.preview != 'true'
+        run: |
+          python ../common/gitsave.py "gtaclips: episode" --mirror gtaclips/episode_used.json gtaclips/RULES.md gtaclips/upload_state.json

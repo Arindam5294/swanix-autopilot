@@ -280,6 +280,37 @@ def overlay(words, hook, cta, total, credit):
         else: im.save(p, compress_level=1); cache[key] = p
     return d_
 
+REMOTION = HERE / "remotion"
+
+def remotion_overlay(words, hook, cta, total, credit):
+    """Animated overlay (spring-in hook bar, karaoke captions, CTA pop, progress bar) rendered by Remotion as a
+    transparent PNG sequence. Same frame count and file names as overlay(), so the FFmpeg step is unchanged.
+    Returns the frame folder, or None (Node/Chrome missing, BOTBEAT_OVERLAY=pil, any render error) -> PIL overlay."""
+    if os.environ.get("BOTBEAT_OVERLAY", CFG.get("overlay_engine", "remotion")) != "remotion":
+        return None
+    if not (REMOTION / "node_modules").exists() or not shutil.which("npx"):
+        print("overlay: Remotion not installed, using PIL overlay", file=sys.stderr); return None
+    frames = int(total * FPS)
+    props = WORK / "overlay_props.json"
+    json.dump({"hook": hook, "cta": cta, "credit": credit, "frames": frames,
+               "words": [{"t": float(w["t"]), "d": float(w["d"]), "w": str(w["w"])} for w in words]}, open(props, "w"))
+    raw, d_ = WORK / "ov_remotion", WORK / "ov"
+    shutil.rmtree(raw, ignore_errors=True); shutil.rmtree(d_, ignore_errors=True)
+    try:
+        sh("npx", "remotion", "render", "src/index.tsx", "Overlay", str(raw), "--sequence", "--image-format=png",
+           f"--props={props}", "--log=error", cwd=str(REMOTION), timeout=int(CFG.get("remotion_timeout", 900)))
+        pngs = sorted(raw.glob("*.png"), key=lambda p: int(re.findall(r"(\d+)", p.stem)[-1]))
+        if len(pngs) < frames:
+            raise RuntimeError(f"Remotion rendered {len(pngs)} of {frames} frames")
+        d_.mkdir()
+        for i, p in enumerate(pngs[:frames]): p.replace(d_ / f"{i:05d}.png")
+        print(f"overlay: Remotion animated overlay, {frames} frames", file=sys.stderr)
+        return d_
+    except Exception as e:
+        print(f"overlay: Remotion failed ({str(e)[:300]}), using PIL overlay", file=sys.stderr)
+        shutil.rmtree(d_, ignore_errors=True)
+        return None
+
 def main():
     clip = json.loads(sys.argv[1])
     shutil.rmtree(WORK, ignore_errors=True); WORK.mkdir(parents=True); OUT.mkdir(exist_ok=True)
@@ -306,11 +337,19 @@ def main():
                f"[a{i}]{BG}[bg{i}];[b{i}]{FG}[fg{i}];[bg{i}][fg{i}]overlay=0:(H-h)/2,setsar=1[s{i}];")
         L.append(f"[s{i}]")
     fc += "".join(L) + f"concat=n={len(segs)}:v=1:a=0,trim=duration={total}[base];"
-    fc += f"[base][1:v]overlay=0:0[v];[2:a]adelay=150|150,volume=1.6[vo];[0:a]volume=0.12,atrim=0:{total}[bed];[vo][bed]amix=inputs=2:duration=first:normalize=0,apad,atrim=0:{total},loudnorm=I=-15[a]"
-    ov = overlay(words, s["hook"], s["cta"], total, f"clip: {clip.get('uploader') or 'source'}")
+    # Voice clash fix: while the narrator talks, the original audio is muffled (speech filtered out, only low rumble/beat
+    # stays), so two voices never talk over each other. When the narrator stops, the original fades back in at full.
+    E = vo_len + 0.25
+    duck = (f"[0:a]asplit=2[o1][o2];"
+            f"[o1]lowpass=f=280,lowpass=f=280,volume='0.5*(1-clip((t-{E:.2f})/0.4,0,1))':eval=frame[m];"
+            f"[o2]volume='0.8*clip((t-{E:.2f})/0.4,0,1)':eval=frame[f];"
+            f"[m][f]amix=inputs=2:normalize=0,atrim=0:{total}[bed];")
+    fc += f"[base][1:v]overlay=0:0[v];[2:a]adelay=150|150,volume=1.6,apad[vo];{duck}[vo][bed]amix=inputs=2:duration=shortest:normalize=0,atrim=0:{total},loudnorm=I=-15[a]"
+    credit = f"clip: {clip.get('uploader') or 'source'}"
+    ov = remotion_overlay(words, s["hook"], s["cta"], total, credit) or overlay(words, s["hook"], s["cta"], total, credit)
     has_audio = "audio" in sh("ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(src))
     if not has_audio:
-        fc = fc.replace(f"[0:a]volume=0.12,atrim=0:{total}[bed];[vo][bed]amix=inputs=2:duration=first:normalize=0,apad", "[vo]apad")
+        fc = fc.replace(f"{duck}[vo][bed]amix=inputs=2:duration=shortest:normalize=0,", "[vo]")
     sh("ffmpeg", "-v", "error", "-y", "-i", str(src), "-framerate", str(FPS), "-i", str(ov / "%05d.png"), "-i", str(WORK / "vo.mp3"),
        "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(total), "-r", str(FPS), "-c:v", "libx264", "-preset", "veryfast",
        "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(WORK / "short.mp4"), timeout=1500)

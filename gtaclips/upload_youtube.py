@@ -9,12 +9,14 @@ Writes out/upload_notes.txt with what happened, so Telegram tells you."""
 import datetime, json, os, pathlib, sys, time, urllib.error, urllib.parse, urllib.request
 
 HERE = pathlib.Path(__file__).resolve().parent
-OUT = HERE / "out"
+OUT = pathlib.Path(os.environ.get("UPLOAD_DIR") or HERE / "out")   # episode.py uploads from out_ep/
+TOK = None
 STATE_F = HERE / "upload_state.json"
 state = json.loads(STATE_F.read_text()) if STATE_F.exists() else {}
 notes = []
 m = json.load(open(OUT / "metadata.json"))
-VIDEO = OUT / "short.mp4"
+VIDEO = OUT / os.environ.get("UPLOAD_FILE", "short.mp4")
+LINK = "https://youtube.com/shorts/{}" if VIDEO.name == "short.mp4" else "https://youtu.be/{}"
 now = datetime.datetime.now(datetime.timezone.utc)
 
 def save_state(): STATE_F.write_text(json.dumps(state, indent=1))
@@ -26,7 +28,18 @@ def req(url, data=None, headers=None, method=None):
         raw = resp.read()
         return resp.status, dict(resp.headers), raw
 
+def set_thumb(link):
+    th = OUT / "thumb.jpg"
+    if not (TOK and th.exists()): return
+    vid = link.rstrip("/").split("/")[-1]
+    try:
+        req(f"https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId={vid}", th.read_bytes(),
+            {"Authorization": f"Bearer {TOK}", "Content-Type": "image/jpeg"}, "POST"); note("Custom thumbnail set.")
+    except Exception as e:
+        note(f"Thumbnail not set ({str(e)[:120]}). Verify the channel by phone at youtube.com/verify to unlock custom thumbnails.")
+
 def done(link, route):
+    set_thumb(link)
     (OUT / "youtube_link.txt").write_text(link)
     (OUT / "upload_route.txt").write_text(route)
     (OUT / "upload_notes.txt").write_text("\n".join(notes))
@@ -34,7 +47,9 @@ def done(link, route):
     print(link); sys.exit(0)
 
 # ---------- API routes ----------
-cid, csec, rtok = (os.environ.get(k, "").strip() for k in ("YT_CLIENT_ID", "YT_CLIENT_SECRET", "GTA_YT_REFRESH_TOKEN"))
+# GTA has its OWN Google Cloud project (own 10,000/day upload quota). Falls back to the Botbeat app only if GTA_* are unset.
+_e = lambda k: os.environ.get(k, "").strip()
+cid, csec, rtok = _e("GTA_YT_CLIENT_ID") or _e("YT_CLIENT_ID"), _e("GTA_YT_CLIENT_SECRET") or _e("YT_CLIENT_SECRET"), _e("GTA_YT_REFRESH_TOKEN")
 
 def access_token():
     try:
@@ -93,7 +108,8 @@ def api_routes():
     lock = state.get("api_locked_until")
     if lock and now.isoformat() < lock:
         note(f"API route skipped: YouTube locked API uploads to private; retrying it after {lock[:10]}."); return
-    tok = access_token()
+    global TOK
+    tok = TOK = access_token()
     if not tok: return
     locked = False
     # Route 1: public
@@ -102,9 +118,9 @@ def api_routes():
         time.sleep(90)
         try: st = safe_status(tok, vid, r.get("status", {}))
         except Exception as e:  # it IS uploaded; a failed check must not trigger a second upload
-            note(f"status check failed ({e}); keeping the uploaded video"); done(f"https://youtube.com/shorts/{vid}", "api-public")
+            note(f"status check failed ({e}); keeping the uploaded video"); done(LINK.format(vid), "api-public")
         if st.get("privacyStatus") == "public" and st.get("uploadStatus") not in ("rejected", "failed"):
-            state.pop("api_locked_until", None); done(f"https://youtube.com/shorts/{vid}", "api-public")
+            state.pop("api_locked_until", None); done(LINK.format(vid), "api-public")
         locked = True
         note(f"API public upload came back {st.get('privacyStatus')}/{st.get('uploadStatus')} (locked). Deleted it, trying scheduled publish.")
         delete(tok, vid)
@@ -121,10 +137,10 @@ def api_routes():
         time.sleep(30)
         try: st = safe_status(tok, vid, r.get("status", {}))
         except Exception as e:
-            note(f"status check failed ({e}); keeping the scheduled video"); done(f"https://youtube.com/shorts/{vid}", "api-scheduled")
+            note(f"status check failed ({e}); keeping the scheduled video"); done(LINK.format(vid), "api-scheduled")
         if st.get("publishAt") and st.get("uploadStatus") not in ("rejected", "failed"):
             state["pending_check"] = {"id": vid, "publishAt": when}
-            done(f"https://youtube.com/shorts/{vid}", "api-scheduled")
+            done(LINK.format(vid), "api-scheduled")
         note(f"Scheduled upload lost its publish time ({st}). Deleted it.")
         delete(tok, vid)
         if locked:
@@ -136,7 +152,8 @@ def check_previous_scheduled():
     """If last run's scheduled Short never went public, the scheduled route is locked too."""
     p = state.get("pending_check")
     if not p or not (cid and csec and rtok) or now.strftime("%Y-%m-%dT%H:%M:%S.000Z") < p["publishAt"]: return
-    tok = access_token()
+    global TOK
+    tok = TOK = access_token()
     if not tok: return
     try:
         st = video_status(tok, p["id"])
@@ -203,7 +220,7 @@ def browser_route():
             b.close()
         if link:
             vid = link.rstrip("/").split("/")[-1].split("=")[-1]
-            done(f"https://youtube.com/shorts/{vid}", "browser")
+            done(LINK.format(vid), "browser")
         note("Browser route: published but couldn't read the link; check YouTube Studio.")
         done("https://studio.youtube.com", "browser-nolink")
     except SystemExit:

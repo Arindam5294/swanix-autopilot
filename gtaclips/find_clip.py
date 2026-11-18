@@ -278,6 +278,21 @@ def age_days(m):
     except Exception:
         return 9999
 
+def score(m):
+    """Playbook step 4: rank by views PER HOUR (what's blowing up now, not what's old and big), x3 for a streamer
+    with an active paid clipping campaign (campaigns.json)."""
+    try:
+        p = (m.get("published") or "").replace("Z", "+00:00")
+        hrs = max(1.0, (datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromisoformat(p)).total_seconds() / 3600)
+    except Exception:
+        hrs = max(1.0, min(age_days(m), 60) * 24)
+    s = m["views"] / hrs
+    try:
+        import campaign
+        if any(k in (m.get("uploader", "") + " " + m.get("title", "")).lower() for k in campaign.boost_names()): s *= 3
+    except Exception: pass
+    return s
+
 def main():
     manual = queue_links()                   # links you send the bot land here (studio/run.py queues them)
     for line in manual:                      # links you chose yourself skip the view bar
@@ -331,7 +346,7 @@ def main():
     if CFG.get("allow_untrusted_fallback", True) or not CFG.get("trusted_only"):
         tiers.append(("any-fresh", lambda m: age_days(m) <= fresh))
     for name, ok in tiers:
-        hits = sorted([m for m in filtered if ok(m)], key=lambda x: -x["views"])
+        hits = sorted([m for m in filtered if ok(m)], key=lambda x: -score(x))
         print(f"find_clip: tier {name}: {len(hits)} candidates", file=sys.stderr)
         if hits:
             m = hits[0]

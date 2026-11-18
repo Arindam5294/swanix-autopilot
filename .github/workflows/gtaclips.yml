@@ -47,7 +47,7 @@ jobs:
         with: { ref: "${{ github.ref_name }}" }   # newest code + used.json, even when an old run is re-run
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core && pip install -q -U --pre "yt-dlp[default]" bgutil-ytdlp-pot-provider edge-tts gtts pillow
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core && pip install -q -U --pre "yt-dlp[default]" bgutil-ytdlp-pot-provider edge-tts gtts pillow "opencv-python-headless<5" faster-whisper
       - uses: actions/setup-node@v4
         with: { node-version: "20", cache: npm, cache-dependency-path: botbeat/remotion/package-lock.json }
       - name: Remotion animated overlay (optional - make_short.py falls back to the PIL overlay if this fails)
@@ -122,13 +122,22 @@ jobs:
           fi
           python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "GTA VI Clips failed: $(tail -c 300 err.txt)" || true
           exit 1
+      - name: Gauntlet - a fresh AI reviewer must say YES before anything posts
+        id: gate
+        if: steps.make.outputs.made == 'true'
+        run: |
+          set +e; python gate.py; RC=$?; set -e
+          if [ $RC -eq 0 ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          python -c "import json,sys; f='used.json'; u=json.load(open(f)); u.append(json.load(open('out/metadata.json'))['source_url']); json.dump(u,open(f,'w'))"
+          python -c "import sys,json; sys.path.insert(0,'../common'); from notify import telegram; g=json.load(open('out/gate.json')); telegram('GTA VI Clips: the reviewer said NO, nothing posted. Faults: ' + '; '.join(g.get('faults',[])))" || true
       - name: Preview only - send to Telegram, no upload
         if: steps.make.outputs.made == 'true' && github.event.inputs.preview == 'true'
-        env: { BOTBEAT_PREVIEW: "1" }
+        env: { BOTBEAT_PREVIEW: "1" }   # preview runs even if the gate said no, so you can see why
         run: python send_short.py
       - name: Lock clip as used before uploading (no duplicates from re-runs/cancels/overlaps)
         id: lock
-        if: steps.make.outputs.made == 'true' && github.event.inputs.preview != 'true'
+        if: steps.gate.outputs.ok == 'true' && github.event.inputs.preview != 'true'
         run: |
           set +e; python mark_used.py; RC=$?
           if [ $RC -eq 4 ]; then echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::warning::clip already posted, upload skipped"; exit 0; fi
@@ -137,6 +146,8 @@ jobs:
         if: steps.lock.outputs.ok == 'true'
         continue-on-error: true
         env:
+          GTA_YT_CLIENT_ID: ${{ secrets.GTA_YT_CLIENT_ID }}
+          GTA_YT_CLIENT_SECRET: ${{ secrets.GTA_YT_CLIENT_SECRET }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           GTA_YT_REFRESH_TOKEN: ${{ secrets.GTA_YT_REFRESH_TOKEN }}
@@ -151,9 +162,20 @@ jobs:
       - uses: actions/upload-artifact@v5
         if: always() && hashFiles('gtaclips/out/upload_error.png') != ''
         with: { name: upload-error-screenshot, path: gtaclips/out/upload_error.png, retention-days: 7 }
+      - name: Post natively to TikTok + Instagram Reels (upload-post.com)
+        if: steps.lock.outputs.ok == 'true'
+        continue-on-error: true
+        env:
+          UPLOAD_POST_API_KEY: ${{ secrets.UPLOAD_POST_API_KEY }}
+          UPLOAD_POST_USER: ${{ secrets.UPLOAD_POST_USER }}
+        run: python crosspost.py
       - name: Send it to you
         if: steps.lock.outputs.ok == 'true'
         run: python send_short.py
+      - name: Clipping campaign - "submit now" ping + STATUS.md
+        if: steps.lock.outputs.ok == 'true'
+        continue-on-error: true
+        run: python campaign.py notify
       - uses: actions/upload-artifact@v5
         if: steps.make.outputs.made == 'true'
         with: { name: gta-short, path: gtaclips/out/, retention-days: 7 }
@@ -162,4 +184,4 @@ jobs:
         run: |
           rm -f cookies.txt
           # race-safe save: keeps links Studio queued while this ran (Studio is the only Telegram reader now)
-          python ../common/gitsave.py "gtaclips: used clips" --union gtaclips/used.json --mirror gtaclips/upload_state.json --lines gtaclips/queue.txt
+          python ../common/gitsave.py "gtaclips: used clips" --union gtaclips/used.json --mirror gtaclips/upload_state.json --mirror gtaclips/RULES.md --mirror gtaclips/STATUS.md --lines gtaclips/queue.txt

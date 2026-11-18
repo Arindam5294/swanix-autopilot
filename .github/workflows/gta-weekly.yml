@@ -1,0 +1,27 @@
+name: GTA VI Clips - weekly outliers + title/thumbnail patterns
+on:
+  schedule:
+    - cron: "30 3 * * 1"   # Mondays 9 AM IST
+  workflow_dispatch:
+permissions: { contents: write }
+concurrency: { group: gta-weekly, cancel-in-progress: false }
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults: { run: { working-directory: gtaclips } }
+    env:
+      GTA_YOUTUBE_API_KEY: ${{ secrets.GTA_YOUTUBE_API_KEY }}
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - run: python outliers.py
+      - run: |
+          python ../common/gitsave.py "gtaclips: weekly outliers" --mirror gtaclips/outliers.csv gtaclips/channels.json gtaclips/THUMBNAILS.md
