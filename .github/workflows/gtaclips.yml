@@ -68,6 +68,7 @@ jobs:
         continue-on-error: true
         with: { node-version: "20" }
       - name: Remotion animated overlay (optional - make_short.py falls back to the PIL overlay if this fails)
+        if: hashFiles('botbeat/remotion/package.json') != ''
         continue-on-error: true
         working-directory: botbeat/remotion
         run: (if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi) && npx remotion browser ensure
@@ -123,7 +124,7 @@ jobs:
           TRIED=$(python -c "import json,sys; print(json.loads(sys.argv[1])['url'])" "$CLIP" 2>/dev/null || true)
           for TRY in 1 2; do
             [ $RC -eq 3 ] || break
-            echo "::warning::YouTube bot wall -> trying a Twitch/Kick clip instead (attempt $TRY)"
+            echo "YouTube bot wall -> trying a Twitch/Kick clip instead (attempt $TRY)"
             NEXT=$(SKIP_YOUTUBE=1 EXCLUDE_URLS="$TRIED" python find_clip.py || true)
             [ -n "$NEXT" ] || { echo "no Twitch/Kick clip available"; break; }
             echo "$NEXT"
@@ -137,7 +138,7 @@ jobs:
           if [ $RC -eq 3 ]; then
             # YouTube bot wall: no low-quality substitute is made. The clip stays unused and is retried next run.
             python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "GTA VI Clips: YouTube blocked the download from GitHub's servers and no Twitch/Kick clip worked either, so no Short was made this run (clip kept for the next run). Permanent fix: YT_COOKIES, YTDLP_HOME_PROXY, or BOTBEAT_RUNNER=self-hosted." || true
-            echo "::warning::YouTube bot wall: skipped this run, clip retried next run"
+            echo "YouTube bot wall: skipped this run, clip retried next run"
             exit 0
           fi
           if [ $RC -eq 5 ]; then
@@ -172,7 +173,7 @@ jobs:
         if: steps.gate.outputs.ok == 'true' && github.event.inputs.preview != 'true'
         run: |
           set +e; python mark_used.py; RC=$?
-          if [ $RC -eq 4 ]; then echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::warning::clip already posted, upload skipped"; exit 0; fi
+          if [ $RC -eq 4 ]; then echo "ok=false" >> "$GITHUB_OUTPUT"; echo "clip already posted, upload skipped"; exit 0; fi
           echo "ok=true" >> "$GITHUB_OUTPUT"
       - name: Upload to YouTube (API, then scheduled, then browser)
         if: steps.lock.outputs.ok == 'true'
