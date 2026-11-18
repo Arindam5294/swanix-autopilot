@@ -381,7 +381,9 @@ def main():
         url, auto = split_q(line)
         if vid_id(url) in USED or url in EXCLUDE: continue
         if NO_YT and is_youtube(url): continue
-        if not is_youtube(url) and "twitch.tv" not in url and "kick.com" not in url:
+        if any(d in url for d in ("x.com/", "twitter.com/")) and "/status/" in url:
+            url = url.split("?")[0].replace("twitter.com/", "x.com/")   # X post: yt-dlp downloads it, no YouTube bot wall
+        elif not is_youtube(url) and "twitch.tv" not in url and "kick.com" not in url:
             print(f"find_clip: skipping non-YouTube URL: {url}", file=sys.stderr)
             continue
         m = meta(url) or {"url": url, "title": "", "desc": "", "views": 0, "uploader": ""}
