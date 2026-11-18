@@ -16,3 +16,4 @@ Nothing posts until it says yes. Copy faults get one automatic fix and a re-chec
 - Submit the link within 30 minutes of posting (Telegram pings you).
 
 ## Verdict log (newest last, keep 60)
+- 2026-11-18 13:28 NO  (1 check) 'xQc ne GTA 6 mein ki FIRST chori 🚗 #shorts': Pre-release gameplay leak (GTA 6 releases Nov 19 2026; footage before this date is a leak/unofficial)
