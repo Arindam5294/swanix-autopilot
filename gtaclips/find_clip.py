@@ -17,7 +17,7 @@ EXCLUDE = {u for u in os.environ.get("EXCLUDE_URLS", "").split() if u}
 ID_RE = re.compile(r"(?:v=|youtu\.be/|shorts/|embed/|live/)([A-Za-z0-9_-]{11})")
 def vid_id(url):
     if url and ("twitch.tv/" in url or "kick.com/" in url) and "/clips/" not in url and "clip" not in url.split("/")[2]:
-        return url.rstrip("/") + "@" + datetime.datetime.utcnow().strftime("%Y%m%d%H")   # a live channel can be clipped again next hour
+        return url.rstrip("/") + "@" + datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d%H")   # a live channel can be clipped again next hour
     """Same video in any URL form (watch?v=, youtu.be, shorts/, ?si=...) -> one 11-char id."""
     m = ID_RE.search(url or ""); return m.group(1) if m else (url or "").split("?")[0].rstrip("/")
 def load_used():
