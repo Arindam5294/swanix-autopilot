@@ -145,6 +145,9 @@ Title must name the streamer, e.g. "<Streamer> loses it in GTA 6 😭 #shorts". 
             prompt += """
 PRE-LAUNCH: the game is not out yet, so this stream is a countdown / hype / talk stream, NOT gameplay.
 Never say or imply they are playing GTA 6. Title and vo must frame it honestly, e.g. "<Streamer>'s GTA 6 hype before launch 😭 #shorts"."""
+    hk = HERE / "HOOKS.md"
+    if hk.exists():   # proven formats from the most-viewed GTA V videos, remade for GTA 6
+        prompt += "\nProven hook/title formats (choose the one that honestly fits this clip):\n" + hk.read_text()[:1800]
     pat = HERE / "THUMBNAILS.md"
     if pat.exists():   # weekly outlier study (outliers.py): copy what's winning on GTA channels right now
         prompt += "\nTitle/hook patterns that are beating other GTA channels this week (follow them, stay honest):\n" + pat.read_text()[:1800]
