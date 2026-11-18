@@ -49,11 +49,12 @@ jobs:
         with: { python-version: "3.12" }
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core && pip install -q -U --pre "yt-dlp[default]" bgutil-ytdlp-pot-provider edge-tts gtts pillow "opencv-python-headless<5" faster-whisper
       - uses: actions/setup-node@v4
-        with: { node-version: "20", cache: npm, cache-dependency-path: botbeat/remotion/package-lock.json }
+        continue-on-error: true
+        with: { node-version: "20" }
       - name: Remotion animated overlay (optional - make_short.py falls back to the PIL overlay if this fails)
         continue-on-error: true
         working-directory: botbeat/remotion
-        run: npm ci --no-audit --no-fund && npx remotion browser ensure
+        run: (if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi) && npx remotion browser ensure
       - name: Optional cookies (only if YouTube/X block downloads)
         env: { YT_COOKIES: "${{ secrets.YT_COOKIES }}" }
         run: python fix_cookies.py || true
