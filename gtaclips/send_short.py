@@ -69,6 +69,17 @@ elif link_f.exists():
     tg_text(x_caption(link))
     tg_text(ig_caption(link))
     print(x_caption(link)); print("----"); print(ig_caption(link))
+elif os.environ.get("HAND_UPLOAD"):
+    ch = "youtube.com/@GTAviclipxx"
+    tg_text(f"🖐 HAND-UPLOAD Short ({m.get('seconds','?')} s), no API quota used. Post it from the YouTube app: + → Short → pick the video below.\nSource: {m['source_url']}"
+            + (f"\n\nNotes:\n{notes[:800]}" if notes else ""))
+    tg_video(OUT / "short.mp4", "📱 YouTube Short + Instagram Reel video (9:16). Title, description and tags are the next 3 messages.")
+    tg_text(m["title"])
+    tg_text(m["description"])
+    tg_text(", ".join(m.get("tags", [])) or "#GTA6, #GTAVI, #Shorts")
+    tg_video(OUT / "short_x.mp4", "🐦 X video (16:9). Captions follow.")
+    tg_text(x_caption(ch)); tg_text(ig_caption(ch))
+    print("hand-upload kit sent")
 else:
     text = (f"⚠️ Auto-upload failed on every route, so here's the file to upload yourself.\n{notes[:1200]}\n\n"
             f"TITLE:\n{m['title']}\n\nDESCRIPTION:\n{m['description']}\n\nTAGS:\n{', '.join(m.get('tags', []))}\n\nSource: {m['source_url']}")

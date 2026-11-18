@@ -36,6 +36,10 @@ on:
         description: "Preview only: send the Short to Telegram, do NOT upload to YouTube"
         type: boolean
         default: false
+      hand_upload:
+        description: "Hand upload: skip the YouTube API (no quota used), Telegram gets the file + title + description to post yourself"
+        type: boolean
+        default: false
 permissions:
   contents: write
 concurrency: { group: gtaclips, cancel-in-progress: false }
@@ -182,7 +186,7 @@ jobs:
           if [ $RC -eq 4 ]; then echo "ok=false" >> "$GITHUB_OUTPUT"; echo "clip already posted, upload skipped"; exit 0; fi
           echo "ok=true" >> "$GITHUB_OUTPUT"
       - name: Upload to YouTube (API, then scheduled, then browser)
-        if: steps.lock.outputs.ok == 'true'
+        if: steps.lock.outputs.ok == 'true' && github.event.inputs.hand_upload != 'true'
         continue-on-error: true
         env:
           GTA_YT_CLIENT_ID: ${{ secrets.GTA_YT_CLIENT_ID }}
@@ -210,6 +214,7 @@ jobs:
         run: python crosspost.py
       - name: Send it to you
         if: steps.lock.outputs.ok == 'true'
+        env: { HAND_UPLOAD: "${{ github.event.inputs.hand_upload == 'true' && '1' || '' }}" }
         run: python send_short.py
       - name: Clipping campaign - "submit now" ping + STATUS.md
         if: steps.lock.outputs.ok == 'true'

@@ -19,7 +19,10 @@ def vid_id(url):
     if url and ("twitch.tv/" in url or "kick.com/" in url) and "/clips/" not in url and "clip" not in url.split("/")[2]:
         return url.rstrip("/") + "@" + datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d%H")   # a live channel can be clipped again next hour
     """Same video in any URL form (watch?v=, youtu.be, shorts/, ?si=...) -> one 11-char id."""
-    m = ID_RE.search(url or ""); return m.group(1) if m else (url or "").split("?")[0].rstrip("/")
+    m = ID_RE.search(url or "")
+    if m and "youtube.com/live/" in (url or ""):   # a YouTube LIVE records NEW footage each run: one Short per 20 min of the stream
+        n = datetime.datetime.now(datetime.timezone.utc); return m.group(1) + "@" + n.strftime("%Y%m%d%H") + str(n.minute // 20)
+    return m.group(1) if m else (url or "").split("?")[0].rstrip("/")
 def load_used():
     """used.json from this checkout PLUS the newest one on GitHub (a re-run of an old run checks out
     an old used.json, which is how the same clip got posted again and again)."""
@@ -84,7 +87,7 @@ def api_meta(url):
     sn, st, ls = it["snippet"], it.get("statistics", {}), it.get("liveStreamingDetails", {})
     live = sn.get("liveBroadcastContent") == "live"
     print(f"find_clip: got metadata for {url} from the YouTube API (yt-dlp was blocked)", file=sys.stderr)
-    return {"url": f"https://www.youtube.com/watch?v={vid}", "title": sn.get("title", ""), "desc": (sn.get("description") or "")[:1500],
+    return {"url": f"https://www.youtube.com/{'live/' if live else 'watch?v='}{vid}", "title": sn.get("title", ""), "desc": (sn.get("description") or "")[:1500],
             "views": int(st.get("viewCount", 0) or 0) or int(ls.get("concurrentViewers", 0) or 0) * 20, "uploader": sn.get("channelTitle", ""),
             "kind": "live" if live else ("stream" if ls else "video"), "duration": 0}
 
@@ -99,6 +102,8 @@ def meta(url):
             r = subprocess.run(cmd[:1] + ["--proxy", px] + cmd[1:], capture_output=True, text=True, timeout=120)
     if r.returncode: return api_meta(url)
     j = json.loads(r.stdout)
+    if j.get("live_status") == "is_live" and is_youtube(url) and len(vid_id(url).split("@")[0]) == 11:
+        url = "https://www.youtube.com/live/" + vid_id(url).split("@")[0]   # keep the live form so the next run can clip it again
     return {"url": url, "title": j.get("title") or "", "desc": (j.get("description") or "")[:1500],
             "views": j.get("view_count") or j.get("concurrent_view_count") or 0, "uploader": j.get("uploader") or "",
             # a pasted YouTube LIVE link must be RECORDED (7 min), never downloaded (a live download never ends)
