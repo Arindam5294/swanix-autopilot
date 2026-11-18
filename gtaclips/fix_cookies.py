@@ -28,4 +28,4 @@ yt = [l.split("\t")[5] for l in keep if "youtube.com" in l.split("\t")[0]]
 ok = any(n in yt for n in ("SAPISID", "__Secure-3PAPISID")) and any(n in yt for n in ("SID", "__Secure-3PSID"))
 print(f"cookies.txt: {len(keep)} cookies, {len(yt)} for youtube.com, signed-in session: {'yes' if ok else 'NO'}")
 if not ok:
-    print("::warning::YT_COOKIES has no signed-in youtube.com session (SAPISID/SID missing). Re-export it.")
+    print("note: YT_COOKIES has no signed-in youtube.com session (SAPISID/SID missing). Re-export it.")
