@@ -191,10 +191,50 @@ def youtube_dlp_search_region(region):
           print(f"find_clip: region {code} fallback error: {e}", file=sys.stderr)
     return out
 
+TWITCH_WEB_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko"  # Twitch's public web client id (what yt-dlp uses); no account or 2FA needed
+
+def twitch_gql(query):
+    r = urllib.request.Request("https://gql.twitch.tv/gql", data=json.dumps({"query": query}).encode(),
+                               headers={"Client-ID": TWITCH_WEB_ID, "Content-Type": "application/json"})
+    return json.loads(urllib.request.urlopen(r, timeout=30).read())["data"]
+
+def twitch_clips_keyless():
+    """Same top GTA VI clips, read from Twitch's public GraphQL. Used when no TWITCH_CLIENT_ID/SECRET."""
+    game = json.dumps(CFG.get("twitch_game", "Grand Theft Auto VI"))
+    period = "LAST_DAY" if CFG.get("twitch_days", 3) <= 1 else "LAST_WEEK"
+    try:
+        d = twitch_gql('{ game(name:%s){ clips(first:50, criteria:{period:%s, sort:VIEWS_DESC}){ edges{ node{ slug url title viewCount createdAt durationSeconds language broadcaster{login displayName} } } } } }' % (game, period))
+        edges = ((d.get("game") or {}).get("clips") or {}).get("edges") or []
+        langs = {l.lower() for l in CFG.get("twitch_languages", ["en"])}
+        out = []
+        for e in edges:
+            c = e["node"]; b = c.get("broadcaster") or {}
+            if langs and (c.get("language") or "").lower() not in langs: continue
+            out.append({"url": c.get("url") or f"https://clips.twitch.tv/{c['slug']}", "title": c["title"],
+                        "desc": f"Twitch clip from {b.get('displayName','a streamer')}'s GTA 6 stream.",
+                        "views": c["viewCount"] * CFG.get("twitch_view_weight", 5), "uploader": b.get("displayName", ""),
+                        "kind": "twitch_clip", "published": c["createdAt"], "region": "TW", "duration": c.get("durationSeconds", 0)})
+        print(f"find_clip: Twitch (keyless): {len(out)} GTA VI clips", file=sys.stderr); return out
+    except Exception as e:
+        print("find_clip: Twitch keyless failed:", e, file=sys.stderr); return []
+
+def twitch_lives_keyless():
+    game = json.dumps(CFG.get("twitch_game", "Grand Theft Auto VI"))
+    try:
+        d = twitch_gql('{ game(name:%s){ streams(first:20){ edges{ node{ title viewersCount createdAt broadcaster{login displayName} } } } } }' % game)
+        edges = ((d.get("game") or {}).get("streams") or {}).get("edges") or []
+        out = [{"url": "https://www.twitch.tv/" + n["broadcaster"]["login"], "title": n.get("title") or "",
+                "desc": f"{n['broadcaster']['displayName']} live on Twitch playing GTA 6.", "views": n["viewersCount"] * 20,
+                "uploader": n["broadcaster"]["displayName"], "kind": "live", "published": n["createdAt"], "region": "TW"}
+               for n in (e["node"] for e in edges) if n.get("broadcaster") and n["viewersCount"] >= CFG.get("min_live_viewers", 2000)]
+        print(f"find_clip: Twitch live (keyless): {len(out)} big GTA VI streams", file=sys.stderr); return out
+    except Exception as e:
+        print("find_clip: Twitch live keyless failed:", e, file=sys.stderr); return []
+
 def twitch_clips():
-    """Twitch's own most-viewed GTA VI clips (already-viral stream moments). Needs TWITCH_CLIENT_ID + TWITCH_CLIENT_SECRET."""
+    """Twitch's most-viewed GTA VI clips. Uses the official API if TWITCH_CLIENT_ID/SECRET are set, else the keyless public GraphQL."""
     cid, sec = os.environ.get("TWITCH_CLIENT_ID"), os.environ.get("TWITCH_CLIENT_SECRET")
-    if not (cid and sec): return []
+    if not (cid and sec): return twitch_clips_keyless()
     try:
         tok = json.loads(urllib.request.urlopen(urllib.request.Request("https://id.twitch.tv/oauth2/token",
               data=urllib.parse.urlencode({"client_id": cid, "client_secret": sec, "grant_type": "client_credentials"}).encode()), timeout=30).read())["access_token"]
@@ -216,7 +256,7 @@ def twitch_clips():
 def twitch_lives():
     """GTA VI streams live on Twitch right now, biggest first (recorded + clipped at their loudest moment)."""
     cid, sec = os.environ.get("TWITCH_CLIENT_ID"), os.environ.get("TWITCH_CLIENT_SECRET")
-    if not (cid and sec): return []
+    if not (cid and sec): return twitch_lives_keyless()
     try:
         tok = json.loads(urllib.request.urlopen(urllib.request.Request("https://id.twitch.tv/oauth2/token",
               data=urllib.parse.urlencode({"client_id": cid, "client_secret": sec, "grant_type": "client_credentials"}).encode()), timeout=30).read())["access_token"]
