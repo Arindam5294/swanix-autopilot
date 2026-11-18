@@ -9,3 +9,4 @@ Every post, newest last.
 | 2026-11-18 16:10 | DunKa invades the MILITARY BASE in GTA 6 🛩️ #shorts |  | https://youtube.com/shorts/j39I1fjtFtU |
 | 2026-11-18 16:28 | Streamer Wrestles Alligator in GTA 6 🤣 #shorts |  |  |
 | 2026-11-18 16:44 | IShowSpeed LOSES IT playing GTA 6 for the first time 😭 #shor |  |  |
+| 2026-11-18 17:03 | Kai Cenat Live's FIRST GTA 6 MOMENT 😭 #shorts |  |  |
