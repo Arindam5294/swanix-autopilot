@@ -41,6 +41,11 @@ DEFAULT_REGIONS = [
     {"code": "IN", "label": "India", "lang": "en"},
 ]
 REGIONS = CFG.get("regions", DEFAULT_REGIONS)
+# Hindi edition: look for Indian/Hindi GTA 6 streams first (YouTube India), still allow English Twitch clips as backup.
+if os.environ.get("GTA_LANG", "").strip().lower() == "hi":
+    REGIONS = [{"code": "IN", "label": "India", "lang": "hi"}]
+    CFG["stream_terms"] = CFG.get("hindi_stream_terms") or ["GTA 6 live hindi", "GTA 6 hindi gameplay", "GTA 6 live india"]
+    CFG["twitch_languages"] = list(dict.fromkeys(["hi"] + CFG.get("twitch_languages", ["en"])))
 
 # Track if the Data API is quota'd/rate-limited so we stop hammering it for the run.
 API_QUOTA_HIT = False
@@ -74,7 +79,10 @@ def meta(url):
     if r.returncode: return None
     j = json.loads(r.stdout)
     return {"url": url, "title": j.get("title") or "", "desc": (j.get("description") or "")[:1500],
-            "views": j.get("view_count") or 0, "uploader": j.get("uploader") or ""}
+            "views": j.get("view_count") or j.get("concurrent_view_count") or 0, "uploader": j.get("uploader") or "",
+            # a pasted YouTube LIVE link must be RECORDED (7 min), never downloaded (a live download never ends)
+            "kind": "live" if j.get("live_status") == "is_live" else ("stream" if j.get("live_status") == "was_live" else "video"),
+            "duration": j.get("duration") or 0}
 
 def queue_links():
     q = HERE / "queue.txt"

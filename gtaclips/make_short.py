@@ -11,6 +11,10 @@ HERE = pathlib.Path(__file__).resolve().parent
 CFG = json.load(open(HERE / "config.json"))
 OUT = HERE / "out"; WORK = pathlib.Path("/tmp/gtaclips")
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+# Hindi edition: GTA_LANG=hi -> Hindi voiceover (Devanagari) + Hinglish title/hook, for the Indian audience.
+HINDI = os.environ.get("GTA_LANG", "").strip().lower() == "hi"
+_DEVA = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"
+if HINDI and os.path.exists(_DEVA): FONT = _DEVA   # renders Hindi captions (and Latin) correctly
 W, H, FPS = 1080, 1920, 30
 
 def sh(*a, **k):
@@ -145,6 +149,15 @@ Title must name the streamer, e.g. "<Streamer> loses it in GTA 6 😭 #shorts". 
             prompt += """
 PRE-LAUNCH: the game is not out yet, so this stream is a countdown / hype / talk stream, NOT gameplay.
 Never say or imply they are playing GTA 6. Title and vo must frame it honestly, e.g. "<Streamer>'s GTA 6 hype before launch 😭 #shorts"."""
+    if HINDI:
+        prompt += """
+HINDI EDITION (Indian audience). Override the language rules above:
+"vo": natural spoken Hindi in DEVANAGARI script, casual Indian gamer tone like Hindi YouTube creators (bhai, kya scene hai),
+  English game words may stay in English letters (GTA 6, Vice City, police, car). Same length limits as above.
+"hook" and "cta": Hinglish in ROMAN letters, ALL CAPS (e.g. "BHAI YE DEKHO", "AAP KYA KARTE?").
+"title": Hinglish in Roman letters, must contain "GTA 6", e.g. "<Streamer> ka GTA 6 mein bura haal 😭 #shorts".
+"description": Hinglish, same credit and fan-page lines, hashtags include #GTA6 #GTA6Hindi #GTA6India.
+"tags": add hindi tags (gta 6 hindi, gta 6 india, gta 6 gameplay hindi)."""
     hk = HERE / "HOOKS.md"
     if hk.exists():   # proven formats from the most-viewed GTA V videos, remade for GTA 6
         prompt += "\nProven hook/title formats (choose the one that honestly fits this clip):\n" + hk.read_text()[:1800]
@@ -201,11 +214,12 @@ def omni_tts(clean, mp3):
 async def tts(text, mp3):
     """OmniVoice signature voice first; edge-tts with retries and backup voices next; gTTS last, so a Short is never lost."""
     import edge_tts, asyncio as _a
-    clean = re.sub(r"[^\w\s.,!?'%$-]", " ", text)
+    clean = re.sub(r"[^\w\s.,!?'%$\u0900-\u097F-]", " ", text)   # keep Hindi letters + matras
     clean = re.sub(r"\s+", " ", clean).strip()
-    words = omni_tts(clean, mp3)
+    words = None if HINDI else omni_tts(clean, mp3)
     if words: return words
-    for voice in [CFG["voice"], "en-US-GuyNeural", "en-US-ChristopherNeural"]:
+    voices = ["hi-IN-MadhurNeural", "hi-IN-SwaraNeural"] if HINDI else [CFG["voice"], "en-US-GuyNeural", "en-US-ChristopherNeural"]
+    for voice in voices:
         for attempt in range(3):
             words = []
             try:
@@ -221,7 +235,7 @@ async def tts(text, mp3):
                 print(f"tts failed: {voice} try {attempt+1}: {type(e).__name__}", file=sys.stderr)
             await _a.sleep(5 * (attempt + 1))
     from gtts import gTTS
-    gTTS(clean, lang="en", tld="com").save(mp3)
+    gTTS(clean, lang="hi" if HINDI else "en", **({} if HINDI else {"tld": "com"})).save(mp3)
     print("tts: used gTTS backup", file=sys.stderr)
     return _even_words(clean, mp3)
 

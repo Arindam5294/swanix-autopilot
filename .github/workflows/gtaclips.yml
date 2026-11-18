@@ -5,17 +5,19 @@ on:
     # LAUNCH DAY (NZ unlocks 16:30 IST Nov 18, US unlocks 10:30 IST Nov 19)
     # Each slot is ~30 min after a big region unlocks at its midnight.
     - cron: "0 11 18 11 *"    # Nov 18  4:30 PM IST = New Zealand unlock (fires ~5 PM after setup)
-    - cron: "30 13 18 11 *"   # Nov 18  7:00 PM IST = Australia unlocked 6:30 PM IST
-    - cron: "30 15 18 11 *"   # Nov 18  9:00 PM IST = Japan/Korea unlocked 8:30 PM IST
-    - cron: "0 19 18 11 *"    # Nov 19 12:30 AM IST = INDIA unlocked at midnight
+    # SKIPPED (saving quota for USA launch): cron "30 13 18 11 *"   # Nov 18  7:00 PM IST = Australia unlocked 6:30 PM IST
+    # SKIPPED (saving quota for USA launch): cron "30 15 18 11 *"   # Nov 18  9:00 PM IST = Japan/Korea unlocked 8:30 PM IST
+    # SKIPPED (saving quota for USA launch): cron "0 19 18 11 *"    # Nov 19 12:30 AM IST = INDIA unlocked at midnight
     - cron: "0 5 19 11 *"     # Nov 19 10:30 AM IST = USA East unlocks (12 AM ET)
     # AFTER LAUNCH: peak hours (India evening + US evening), from Nov 19 evening
     - cron: "30 12 19-30 11 *"   # 6:00 PM IST  India evening
-    - cron: "30 14 19-30 11 *"   # 8:00 PM IST  India prime time
+    # 8:00 PM IST India prime time is now the daily HINDI run (cron "31 14 ..." below)
     - cron: "30 16 19-30 11 *"   # 10:00 PM IST India late night / Europe evening
     - cron: "30 1 20-30 11 *"    # 7:00 AM IST  US evening (8:30 PM ET)
     - cron: "0 7 20-30 11 *"     # 12:30 PM IST India lunch / US late night
-    - cron: "30 12,14,16 * 1-10,12 *"   # same peak times, other months
+    - cron: "30 12,16 * 1-10,12 *"   # same peak times, other months (English)
+    - cron: "31 14 19-30 11 *"     # 8:01 PM IST daily from Nov 19 = HINDI edition (India prime time). Replaces the old 8 PM English slot.
+    - cron: "31 14 * 1-10,12 *"    # same Hindi slot, other months
     - cron: "30 1 * 1-10,12 *"
     - cron: "0 7 * 1-10,12 *"
   workflow_dispatch:
@@ -25,6 +27,9 @@ on:
         required: false
       topic:
         description: "(unused for GTA, leave blank)"
+        required: false
+      lang:
+        description: "Language: blank = English, hi = Hindi edition"
         required: false
       preview:
         description: "Preview only: send the Short to Telegram, do NOT upload to YouTube"
@@ -56,6 +61,7 @@ jobs:
       TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
       KICK_CLIENT_ID: ${{ secrets.KICK_CLIENT_ID }}            # optional: Kick live GTA VI streams
       KICK_CLIENT_SECRET: ${{ secrets.KICK_CLIENT_SECRET }}
+      GTA_LANG: ${{ (startsWith(github.event.schedule, '31 14 ') && 'hi') || github.event.inputs.lang || '' }}   # hi = Hindi edition
       BOTBEAT_VOICE: edge   # GTA channel uses its own edge-tts voice, not the Botbeat narrator
       YTDLP_HOME_PROXY: ${{ secrets.YTDLP_HOME_PROXY }}
     steps:
@@ -63,7 +69,7 @@ jobs:
         with: { ref: "${{ github.ref_name }}" }   # newest code + used.json, even when an old run is re-run
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core && pip install -q -U --pre "yt-dlp[default]" bgutil-ytdlp-pot-provider edge-tts gtts pillow "opencv-python-headless<5" faster-whisper
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-core && pip install -q -U --pre "yt-dlp[default]" bgutil-ytdlp-pot-provider edge-tts gtts pillow "opencv-python-headless<5" faster-whisper
       - uses: actions/setup-node@v4
         continue-on-error: true
         with: { node-version: "20" }
@@ -77,7 +83,7 @@ jobs:
         run: python fix_cookies.py || true
       - name: Pick a viral clip
         id: pick
-        env: { MANUAL_URL: "${{ github.event.inputs.url }}", TOPIC: "${{ github.event.inputs.topic }}", SKIP_YOUTUBE: "${{ github.event_name == 'schedule' && '1' || '' }}" }   # scheduled: Twitch/Kick only, saves API quota for uploads
+        env: { MANUAL_URL: "${{ github.event.inputs.url }}", TOPIC: "${{ github.event.inputs.topic }}", SKIP_YOUTUBE: "${{ github.event_name == 'schedule' && !startsWith(github.event.schedule, '31 14 ') && '1' || '' }}" }   # scheduled: Twitch/Kick only, saves API quota for uploads
         run: |
           if [ -n "$MANUAL_URL" ] && [ -n "$TOPIC" ]; then echo "$MANUAL_URL #trend #general topic=${TOPIC// /_}" >> queue.txt
           elif [ -n "$MANUAL_URL" ]; then echo "$MANUAL_URL" >> queue.txt; fi
