@@ -71,12 +71,33 @@ def get(url):
     with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "gtaclips/1.0"}), timeout=30) as r:
         return json.loads(r.read())
 
+def api_meta(url):
+    """YouTube Data API metadata: never bot-blocked on GitHub (uses YOUTUBE_API_KEY, 1 quota unit)."""
+    key, vid = os.environ.get("YOUTUBE_API_KEY"), vid_id(url)
+    if not key or not is_youtube(url) or len(vid) != 11: return None
+    try:
+        p = urllib.parse.urlencode({"part": "snippet,statistics,liveStreamingDetails,contentDetails", "id": vid, "key": key})
+        it = (get("https://www.googleapis.com/youtube/v3/videos?" + p).get("items") or [None])[0]
+    except Exception as e:
+        print(f"find_clip: API lookup failed for {url}: {e}", file=sys.stderr); return None
+    if not it: return None
+    sn, st, ls = it["snippet"], it.get("statistics", {}), it.get("liveStreamingDetails", {})
+    live = sn.get("liveBroadcastContent") == "live"
+    print(f"find_clip: got metadata for {url} from the YouTube API (yt-dlp was blocked)", file=sys.stderr)
+    return {"url": f"https://www.youtube.com/watch?v={vid}", "title": sn.get("title", ""), "desc": (sn.get("description") or "")[:1500],
+            "views": int(st.get("viewCount", 0) or 0) or int(ls.get("concurrentViewers", 0) or 0) * 20, "uploader": sn.get("channelTitle", ""),
+            "kind": "live" if live else ("stream" if ls else "video"), "duration": 0}
+
 def meta(url):
-    """yt-dlp metadata (works for X, YouTube, Instagram and more)."""
+    """yt-dlp metadata (works for X, YouTube, Instagram and more); YouTube API when GitHub is blocked."""
     cmd = ["yt-dlp", "-J", "--no-warnings", "--no-playlist", url]
     if os.path.exists("cookies.txt"): cmd[1:1] = ["--cookies", "cookies.txt"]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-    if r.returncode: return None
+    for px in ([os.environ.get("YTDLP_HOME_PROXY")] + [os.environ.get("YTDLP_PROXY")]):   # YouTube blocked GitHub? retry via proxy/WARP
+        if r.returncode and px:
+            print(f"find_clip: lookup blocked, retrying via proxy", file=sys.stderr)
+            r = subprocess.run(cmd[:1] + ["--proxy", px] + cmd[1:], capture_output=True, text=True, timeout=120)
+    if r.returncode: return api_meta(url)
     j = json.loads(r.stdout)
     return {"url": url, "title": j.get("title") or "", "desc": (j.get("description") or "")[:1500],
             "views": j.get("view_count") or j.get("concurrent_view_count") or 0, "uploader": j.get("uploader") or "",
@@ -367,6 +388,10 @@ def main():
             print(f"find_clip: trend clip off-topic, skipped: {m['title'][:80]!r}", file=sys.stderr); continue
         m["source"] = "trend" if auto else "manual"; print(json.dumps(m)); return
 
+    if os.environ.get("MANUAL_URL", "").strip():
+        # You asked for ONE specific link. If it couldn't be used, stop here (Telegram says so) instead of posting something random.
+        print("find_clip: your link couldn't be used this run, so nothing was auto-picked in its place", file=sys.stderr); return
+
     # Multi-region discovery: merge pools from every configured region.
     pool = []
     for region in ([] if NO_YT else REGIONS):
@@ -378,6 +403,11 @@ def main():
     pool += twitch_clips() + twitch_lives() + kick_lives() + kick_clips()
     if not CFG.get("allow_live", True): pool = [m for m in pool if m.get("kind") != "live"]
     pool = [m for m in pool if m["url"] not in EXCLUDE and not (NO_YT and is_youtube(m["url"]))]
+    NOT_GAMEPLAY = re.compile(r"\b(ama|q&a|review|reviewer|podcast|interview|news|explained|analysis|discussion|talk|tier list|reacts? to trailer|watch ?party|sales|price|everything we know|countdown)\b", re.I)
+    NOT_GAMEPLAY_CH = {c.lower() for c in CFG.get("non_gameplay_channels", ["IGN", "GameSpot", "Kotaku", "Polygon", "GameRant", "Eurogamer", "The Game Theorists", "Gamer Guides"])}
+    before = len(pool)
+    pool = [m for m in pool if not NOT_GAMEPLAY.search(m.get("title", "")) and (m.get("uploader") or "").lower() not in NOT_GAMEPLAY_CH]
+    print(f"find_clip: real-gameplay filter dropped {before - len(pool)} talk/news/review videos", file=sys.stderr)
     # Before launch (NZ midnight 19 Nov 2026 = 18 Nov 11:00 UTC) nobody is playing GTA 6: live "GTA VI" streams are waiting/donation streams, not footage.
     if datetime.datetime.now(datetime.timezone.utc) < datetime.datetime(2026, 11, 18, 11, tzinfo=datetime.timezone.utc):
         pool = [m for m in pool if not (m.get("kind") == "live" and m.get("region") in ("TW", "KICK"))]

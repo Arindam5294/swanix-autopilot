@@ -74,11 +74,16 @@ def from_audio(url, dur, work):
 def record_live(url, work, seconds):
     """Record the next N seconds of a live stream (MPEG-TS so a stopped recording is still playable)."""
     ts = work / "live.ts"
-    p = subprocess.Popen(ytdlp_base() + ["-f", "b[height<=1080]/b", "--hls-use-mpegts", "--no-part", "-o", str(ts), url],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    try: p.wait(timeout=seconds)
-    except subprocess.TimeoutExpired: p.terminate(); p.wait(30)
-    f = next(work.glob("live.*"), None)
+    routes = [[]] + ([["--proxy", os.environ["YTDLP_PROXY"]]] if os.environ.get("YTDLP_PROXY") and not os.environ.get("YTDLP_HOME_PROXY") else [])
+    f = None
+    for extra in routes:   # direct first; if YouTube blocks GitHub, record through the WARP proxy
+        p = subprocess.Popen(ytdlp_base() + extra + ["-f", "b[height<=1080]/b", "--hls-use-mpegts", "--no-part", "-o", str(ts), url],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try: p.wait(timeout=seconds)
+        except subprocess.TimeoutExpired: p.terminate(); p.wait(30)
+        f = next(work.glob("live.*"), None)
+        if f and f.stat().st_size >= 500000: break
+        print("record_live: route failed, trying next", file=sys.stderr)
     if not f or f.stat().st_size < 500000: raise RuntimeError("live recording failed (stream ended or blocked)")
     mp4 = work / "live.mp4"
     run(["ffmpeg", "-y", "-v", "error", "-i", str(f), "-c", "copy", str(mp4)], 300)
