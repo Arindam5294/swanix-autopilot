@@ -372,6 +372,9 @@ def score(m):
 
 def main():
     manual = queue_links()                   # links you send the bot land here (studio/run.py queues them)
+    mu = os.environ.get("MANUAL_URL", "").strip()
+    if mu:   # the link you typed in THIS run wins: old queued links (e.g. Carry) wait for a scheduled run
+        manual = [l for l in manual if vid_id(l.split()[0]).split("@")[0] == vid_id(mu).split("@")[0]] or [mu]
     for line in manual:                      # links you chose yourself skip the view bar
         url, auto = split_q(line)
         if vid_id(url) in USED or url in EXCLUDE: continue
