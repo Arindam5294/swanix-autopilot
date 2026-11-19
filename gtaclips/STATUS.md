@@ -15,3 +15,4 @@ Every post, newest last.
 | 2026-11-19 03:49 | UFO Spotted Over Leonida Wetlands In GTA 6 🛸 #shorts |  |  |
 | 2026-11-19 04:46 | Millzaa finds BEST early loot in GTA 6 💰 #shorts |  |  |
 | 2026-11-19 10:25 | xQc's FIRST Grand Theft Auto in GTA 6 😭 #shorts |  | https://youtube.com/shorts/3qbW8fS7488 |
+| 2026-11-19 12:11 | IShowSpeed Loses It Over GTA 6 Surprise 😭 #shorts |  | https://youtube.com/shorts/hN2c5FHEGEA |
