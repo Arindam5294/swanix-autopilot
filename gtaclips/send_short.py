@@ -25,6 +25,15 @@ hindi = m.get("lang") == "hi"
 must = (m.get("must_include") or "").strip()          # campaign tag (e.g. "LACY #LACY"), required for payouts
 desc_tags = [w for w in m.get("description", "").split() if w.startswith("#") and w.lower() != "#shorts"]
 handle = "#" + re.sub(r"[^A-Za-z0-9]", "", who) if who else ""
+# hook-first: share CTA line + a comment question in the Instagram caption
+share = ""
+if m.get("share_cta"):
+    try:
+        import hookfirst; share = hookfirst.cta_sentence(m["share_cta"])
+    except Exception:
+        share = str(m["share_cta"]).capitalize()
+_q = str(m.get("cta") or "").strip()
+ask = ("💬 " + _q[:1].upper() + _q[1:].lower() + " Comment below 👇") if _q.endswith("?") else ""
 
 def uniq(xs):
     seen, out = set(), []
@@ -47,6 +56,9 @@ def ig_caption(link):
     if hindi: base = ["#GTA6Hindi", "#GTA6India", "#IndianGamer", "#HindiGaming"] + base
     tags = uniq([handle] + desc_tags + base)[:28]       # Instagram allows 30, keep 2 spare
     lines = [title, ""]
+    if share: lines.append(share)                      # hook-first share CTA ("Send this to the friend who ...")
+    if ask: lines += [ask, ""]
+    elif share: lines.append("")
     if who: lines.append(f"🎥 Clip: {who} (all credit to the streamer)")
     if must: lines.append(must)
     lines += [f"▶️ Watch on YouTube: {link}", "🔔 Follow for daily GTA 6 moments" + (" | roz Hindi clips 8PM" if hindi else ""), "",

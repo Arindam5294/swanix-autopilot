@@ -4,7 +4,7 @@ hook bar on top, the real footage in the middle, word-timed captions, pro Englis
 (signature local OmniVoice narrator, edge-tts/gTTS as backups).
 Usage: python make_short.py '<json from find_clip.py>'  -> writes out/short.mp4 + out/metadata.json"""
 import json, os, sys, re, asyncio, pathlib, subprocess, shutil, hashlib
-import moments, layout, captions, campaign
+import moments, layout, captions, campaign, hookfirst
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "common"))
 from ai import ask  # same free AI chain: Gemini -> Groq -> OpenRouter
 HERE = pathlib.Path(__file__).resolve().parent
@@ -16,6 +16,9 @@ HINDI = os.environ.get("GTA_LANG", "").strip().lower() == "hi"
 _DEVA = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"
 if HINDI and os.path.exists(_DEVA): FONT = _DEVA   # renders Hindi captions (and Latin) correctly
 W, H, FPS = 1080, 1920, 30
+# Hook-first edit (cold open on the key moment -> facecam body -> 0.5x REPLAY -> "SEND THIS TO..." end card).
+# config "hookfirst": false or env GTA_HOOKFIRST=0 restores the old render.
+HOOKFIRST = hookfirst.enabled(CFG)
 
 def sh(*a, **k):
     r = subprocess.run(list(a), capture_output=True, text=True, **k)
@@ -135,6 +138,8 @@ Return ONLY JSON with keys:
 "hook": top-of-screen hook, 2-5 words, ALL CAPS, curiosity gap about what the clip shows (e.g. "THIS NPC REACTION", "HIDDEN CAR NOBODY FOUND");
 "vo": voiceover, 45-60 words, first sentence is the hook spoken, add one useful takeaway (a tip, a detail to notice, or why it matters), end with a short question;
 "cta": max 5 words ALL CAPS question shown at the end, e.g. "WOULD YOU TRY THIS?";
+"share_cta": ALL CAPS share line that starts with "SEND THIS TO" and names who should see it, tied to what happens in the clip,
+  max 9 words, e.g. "SEND THIS TO THE FRIEND WHO CAN'T DRIVE" or "SEND THIS TO THE WORST PILOT YOU KNOW" (English even for Hindi);
 "title": viral title under 70 characters, contains "GTA 6", one emoji max, no clickbait the clip doesn't deliver, ending with " #shorts";
 "description": 2 sentences + a line "🎥 Clip: <creator> (link below)" + a line "Fan page. Not affiliated with Rockstar Games." + 6 hashtags starting with #GTA6 #GTAVI;
 "tags": list of 15 search tags (gta 6, gta vi, gta 6 gameplay, vice city, leonida, ...)."""
@@ -358,6 +363,43 @@ def send_x(path, s, clip):
     subprocess.run(["curl", "-s", "-F", f"chat_id={chat}", "-F", f"caption={text}", "-F", f"video=@{path}",
                     f"https://api.telegram.org/bot{tok}/sendVideo"], capture_output=True, timeout=180)
 
+def main_hookfirst(clip, s, src, kind, clean, moment):
+    """Real-audio clip, hook-first structure (hookfirst.py): cold open -> facecam body + credit -> 0.5x REPLAY -> share end card.
+    Streamer captions are burned on the body only. Same out/short.mp4, out/short_x.mp4 and out/metadata.json as before."""
+    box = None
+    if CFG.get("split_layout", True):
+        try:
+            vw, vh = map(int, sh("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", str(src)).strip().split(",")[:2])
+            if vw > vh: box = layout.find_facecam(src)
+        except Exception as e:
+            print("layout: skipped:", e, file=sys.stderr)
+    key, why = hookfirst.pick_key(src, clip)
+    print(f"hook-first: key moment {key}s ({why})", file=sys.stderr)
+    info = hookfirst.render(src, WORK / "short.mp4", hook=s["hook"], cta=s["share_cta"], credit=hookfirst.credit_for(clip),
+                            key=key, cam=box, total=CFG.get("hookfirst_seconds", 18), work=WORK)
+    final, total = WORK / "short.mp4", info["seconds"]
+    b0, b1 = info["timeline"]["body"]
+    if CFG.get("streamer_captions", True) and hookfirst.has_audio(src):
+        if captions.burn(final, WORK / "short_cap.mp4", start_after=b0, y=CFG.get("caption_y", 1180), end_before=b1,
+                         font=str(hookfirst.font_file()) if not HINDI else None):
+            final = WORK / "short_cap.mp4"
+    shutil.copy(final, OUT / "short.mp4")
+    if CFG.get("x_version", True):
+        try:
+            sh("ffmpeg", "-v", "error", "-y", "-i", str(src), "-i", str(OUT / "short.mp4"), "-filter_complex", hookfirst.x_filter(info["xsegs"]),
+               "-map", "[xv]", "-map", "1:a?", "-t", str(total), "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
+               "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(OUT / "short_x.mp4"), timeout=900)
+        except Exception as e:
+            print("x version skipped:", str(e)[:300], file=sys.stderr)
+    must = (campaign.match(" ".join(str(clip.get(k, "")) for k in ("uploader", "title", "url"))) or {}).get("must_include", "")
+    s.update({"clean": clean, "mode": clip.get("mode", "ai"), "topic": clip.get("topic", ""), "source_url": clip["url"], "kind": kind,
+              "moment": clip.get("moment", ""), "moment_at": clip.get("moment_at", ""), "source_views": clip.get("views", 0),
+              "uploader": clip.get("uploader", ""), "lang": "hi" if HINDI else "en", "must_include": must, "seconds": round(total, 1),
+              "layout": "split" if box else "frame", "structure": "hookfirst", "key_at": info["key_at"], "key_why": why,
+              "share_cta": s["share_cta"], "voiceover": False})
+    json.dump(s, open(OUT / "metadata.json", "w"), indent=1)
+    print("made", OUT / "short.mp4", round(total, 1), "s (hook-first)")
+
 def main():
     clip = json.loads(sys.argv[1])
     shutil.rmtree(WORK, ignore_errors=True); WORK.mkdir(parents=True); OUT.mkdir(exist_ok=True)
@@ -395,14 +437,28 @@ def main():
     # Only the streamer's real footage + real audio, facecam split, and word captions of what the streamer says.
     camp = campaign.match(" ".join(str(clip.get(k, "")) for k in ("uploader", "title", "url"))) or {}
     clean = bool(camp.get("clean")) or bool(CFG.get("clean_mode")) or os.environ.get("GTA_CLEAN") == "1"
-    if clean:
+    moment = kind in ("live", "stream", "twitch_clip") or clip.get("moment")
+    # Hook-first on a real-audio clip (stream moment / clean campaign): the cold-open hook replaces the AI intro,
+    # so there is no voiceover at all - only the streamer's real audio.
+    hf_real = HOOKFIRST and bool(moment or clean)
+    share = hookfirst.share_cta(s, clip) if HOOKFIRST else ""
+    if share:
+        s["share_cta"] = share
+        s["description"] = s.get("description", "").rstrip() + "\n\n" + hookfirst.cta_sentence(share)
+    if clean or hf_real:
         sh("ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", "0.3", "-q:a", "9", str(WORK / "vo.mp3"))
         words = []
-        print(f"clean mode: no AI voiceover ({camp.get('name', 'config')})", file=sys.stderr)
+        print(f"clean mode: no AI voiceover ({camp.get('name', 'config')})" if clean else "hook-first: real audio only, no AI voiceover", file=sys.stderr)
     else:
         words = asyncio.run(tts(s["vo"], str(WORK / "vo.mp3")))
-    vo_len = 0.0 if clean else duration(WORK / "vo.mp3")
-    moment = kind in ("live", "stream", "twitch_clip") or clip.get("moment")
+    vo_len = 0.0 if (clean or hf_real) else duration(WORK / "vo.mp3")
+    if hf_real:
+        try:
+            return main_hookfirst(clip, s, src, kind, clean, moment)
+        except Exception as e:   # never lose a run to the new edit: fall back to the classic render (with its AI intro)
+            print("hook-first render failed, using the classic render:", str(e)[-600:], file=sys.stderr)
+            if not clean:
+                words = asyncio.run(tts(s["vo"], str(WORK / "vo.mp3"))); vo_len = duration(WORK / "vo.mp3")
     if moment:   # viral stream moment: the reaction IS the content -> uncut footage, real audio after the intro
         total = min(CFG.get("moment_seconds", 40), duration(src))
         total = max(total, vo_len + 1.5)
@@ -452,21 +508,38 @@ def main():
     # Playbook step 6: word-by-word captions of what the streamer says after the intro (narrator words are already captioned)
     if (moment or clean) and CFG.get("streamer_captions", True) and has_audio:
         if captions.burn(final, WORK / "short_cap.mp4", start_after=E, y=CFG.get("caption_y", 1180)): final = WORK / "short_cap.mp4"
+    xbody, _acc = [], 0.0   # body segments trimmed to the body's real length, so the X timeline matches the Short
+    for ss, ln in segs:
+        if _acc >= total: break
+        xbody.append((ss, min(ln, total - _acc))); _acc += ln
+    hfinfo = None
+    if HOOKFIRST:   # narrated Short: cold open before it, 0.5x replay + share end card after it
+        try:
+            key, why = hookfirst.pick_key(src, clip); print("hook-first key:", key, why, file=sys.stderr)
+            hfinfo = hookfirst.render(src, WORK / "short_hf.mp4", hook=s["hook"], cta=share, credit=credit, key=key,
+                                      cam=box, work=WORK, body_file=final)
+            final = WORK / "short_hf.mp4"; total = hfinfo["seconds"]
+        except Exception as e:
+            print("hook-first wrap failed, posting the plain Short:", str(e)[-400:], file=sys.stderr); hfinfo = None
     shutil.copy(final, OUT / "short.mp4")
     # X version: landscape 16:9 (X plays landscape best; Lacy/Clix count X views). Same clip, same audio as the Short.
     if CFG.get("x_version", True):
         try:
-            xf = ""
-            for i, (ss, ln) in enumerate(segs):
-                xf += (f"[0:v]trim=start={ss}:duration={ln},setpts=PTS-STARTPTS,fps={FPS},"
-                       f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[x{i}];")
-            xf += "".join(f"[x{i}]" for i in range(len(segs))) + f"concat=n={len(segs)}:v=1:a=0,trim=duration={total}[xv]"
+            if hfinfo:
+                xf = hookfirst.x_filter(hfinfo["xsegs"], body_segs=xbody).replace("[xv]", f",trim=duration={total}[xv]")
+            else:
+                xf = ""
+                for i, (ss, ln) in enumerate(segs):
+                    xf += (f"[0:v]trim=start={ss}:duration={ln},setpts=PTS-STARTPTS,fps={FPS},"
+                           f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[x{i}];")
+                xf += "".join(f"[x{i}]" for i in range(len(segs))) + f"concat=n={len(segs)}:v=1:a=0,trim=duration={total}[xv]"
             sh("ffmpeg", "-v", "error", "-y", "-i", str(src), "-i", str(OUT / "short.mp4"), "-filter_complex", xf,
                "-map", "[xv]", "-map", "1:a?", "-t", str(total), "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
                "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(OUT / "short_x.mp4"), timeout=900)
             # send_short.py now sends the X video WITH the YouTube link + ready captions after upload
         except Exception as e:
             print("x version skipped:", str(e)[:300], file=sys.stderr)
+    if hfinfo: s.update({"structure": "hookfirst", "key_at": hfinfo["key_at"], "share_cta": share})
     s.update({"clean": clean, "mode": clip.get("mode", "ai"), "topic": clip.get("topic", ""), "source_url": clip["url"], "kind": kind, "moment": clip.get("moment", ""), "moment_at": clip.get("moment_at", ""), "source_views": clip.get("views", 0), "uploader": clip.get("uploader", ""), "lang": "hi" if HINDI else "en", "must_include": (campaign.match(" ".join(str(clip.get(k, "")) for k in ("uploader", "title", "url"))) or {}).get("must_include", ""), "seconds": round(total, 1), "layout": "split" if box else "frame"})
     json.dump(s, open(OUT / "metadata.json", "w"), indent=1)
     print("made", OUT / "short.mp4", round(total, 1), "s")

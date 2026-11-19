@@ -35,7 +35,8 @@ def hard_checks():
 
 gate.hard_checks = hard_checks
 gate.BRIEF = gate.BRIEF.replace("Look at the frames", "This is a 'GTA 6 SECRETS · PART N' tip Short: one streamer clip (webcam on top is fine), "
-    "a yellow series banner, a hook, WHERE / WHAT YOU GET captions and a 'FOLLOW FOR PART N+1' end card (a darkened last frame is intended). "
+    "a hook-first cold open, a yellow series banner, WHERE / WHAT YOU GET captions, a 0.5x REPLAY of the payoff and a darkened "
+    "'SEND THIS TO ... / FOLLOW FOR PART N+1' end card (all intended). "
     "A guide tip about a place, vehicle, weapon or money spot is NOT an exploit. Bikinis, lingerie and thongs are fine. "
     "Say NO if any frame shows full nudity (bare genitals, bare breasts, naked NPCs), a stream sub/donation alert overlay, or a slur on screen. Look at the frames", 1)
 if __name__ == "__main__":

@@ -269,6 +269,7 @@ Reply ONLY JSON:
  "where": "WHERE caption, max 8 words, the place/how to get there, from the article",
  "what": "WHAT YOU GET caption, max 8 words, from the article",
  "summary": "the tip in 1-2 short sentences for the description, from the article",
+ "share_cta": "ALL CAPS share line starting 'SEND THIS TO', max 9 words, who needs this tip, e.g. 'SEND THIS TO THE FRIEND WHO ALWAYS NEEDS MONEY'",
  "quote": "the sentence from the article that proves the tip, copied EXACTLY character for character (8-40 words)"}}"""
 
 def llm_tip(art, text, used):
@@ -524,11 +525,57 @@ def dt(name, text, y, size, color, t0, t1, bw=10, x="(w-text_w)/2"):
     return (f"drawtext=fontfile={FONT_FILE}:textfile={p}:expansion=none:fontsize={size}:fontcolor={color}:borderw={bw}:bordercolor=black:"
             f"shadowx=0:shadowy=6:shadowcolor=black@0.6:x={x}:y={y}:enable='between(t,{t0:.2f},{t1:.2f})'")
 
+def secrets_cta(tip):
+    c = re.sub(r"\s+", " ", str(tip.get("share_cta") or "")).strip().upper().rstrip(".!")
+    return c if c.startswith("SEND THIS TO ") and len(c) <= 60 and len(c.split()) <= 12 else "SEND THIS TO YOUR GTA 6 SQUAD"
+
+
+def render_hookfirst(clip, tip, part, dst):
+    """Hook-first structure (hookfirst.py) with the series dressing: cold open on the payoff + hook, facecam body with the
+    PART banner and WHERE / WHAT YOU GET captions, 0.5x REPLAY of the payoff, end card 'SEND THIS TO ...' + 'FOLLOW FOR PART N+1'."""
+    import hookfirst, listicle
+    path = clip["path"]
+    w, h = listicle.probe_wh(path)
+    if clip.get("key_at") is not None:
+        key, why = float(clip["key_at"]), "manual key_at"
+    else:   # Gemini vision payoff (6 coarse frames) refined to the loudness/motion peak within 2 s of it
+        key, why = hookfirst.key_moment(path, near=float(clip["payoff"]), spread=2.0)
+    log(f"hook-first key moment {key}s ({why})")
+    cam = clip.get("cam") if w > h else None
+    banner = f"GTA 6 SECRETS · PART {part}"
+    cta = secrets_cta(tip)
+
+    def extra(tl):
+        b0, e0 = tl["body"][0], tl["end"][0]
+        ko = tl["key_out"] if tl.get("key_out") is not None else (b0 + tl["body"][1]) / 2
+        bsz = 62; bwid = text_w(banner, bsz); by = 48
+        out = [f"drawbox=x={int((W - bwid) / 2 - 34)}:y={by - 16}:w={int(bwid + 68)}:h={bsz + 40}:color={YELLOW}@1:t=fill:enable='between(t,{b0:.2f},{e0:.2f})'",
+               dt("banner", banner, by + 2, bsz, "black", b0, e0, bw=0).replace("shadowy=6", "shadowy=0")]
+        cap_y = 1330 if tl["cam"] else 1240
+        for name, label, body, t0, t1 in (("where", "WHERE", tip["where"], b0, ko), ("what", "WHAT YOU GET", tip["what"], ko, e0)):
+            if t1 - t0 < 0.4: continue
+            out.append(dt(f"{name}L", label, cap_y, 56, YELLOW, t0, t1, bw=8))
+            lines, sz = wrap(body.upper(), 84, 960, 2)
+            for j, ln in enumerate(lines):
+                out.append(dt(f"{name}{j}", ln, cap_y + 74 + j * int(sz * 1.15), sz, "white", t0, t1))
+        return out
+
+    info = hookfirst.render(path, dst, hook=tip["hook"], cta=cta, credit=hookfirst.credit_for(clip) if clip.get("url") else
+                            f"clip: {clip.get('credit') or clip.get('uploader') or 'streamer'}", key=key, cam=cam,
+                            total=max(12, min(20, C("secrets_target_seconds", 20))), work=WORK, extra=extra,
+                            end_sub=f"FOLLOW FOR PART {part + 1}", preset="medium")
+    P, tl = info["plan"], info["timeline"]
+    return {"start": P["body"][0], "end": P["body"][1], "seconds": info["seconds"], "payoff_at": round(tl["body"][0] + key - P["body"][0], 2),
+            "layout": info["layout"], "structure": "hookfirst", "key_at": key, "key_why": why, "share_cta": cta}
+
+
 def render(clip, tip, part, dst):
     WORK.mkdir(parents=True, exist_ok=True)
-    import listicle
+    import listicle, hookfirst
     listicle.FONT_DIR, listicle.FONT_FILE = FONT_DIR, FONT_FILE
     listicle.ensure_font()
+    if hookfirst.enabled(CFG):   # shared hook-first edit (config/gta_secrets.json "hookfirst": false or GTA_HOOKFIRST=0 = old render)
+        return render_hookfirst(clip, tip, part, dst)
     path = clip["path"]; dur = clip.get("dur") or duration(path)
     w, h = listicle.probe_wh(path)
     s, e = pick_window(dur, clip["payoff"])
@@ -600,7 +647,13 @@ def make_copy(tip, clip, part):
     title = t + " #Shorts"
     who = clip.get("uploader") or "the streamer"
     clip_url = clip.get("url", "")
-    desc = (f"{tip['summary'].strip()}\n\nGTA 6 Secrets · Part {part}. Follow for Part {part + 1} 🔔\n\n"
+    share = ""
+    try:
+        import hookfirst
+        if hookfirst.enabled(CFG): share = hookfirst.cta_sentence(secrets_cta(tip)) + "\n"
+    except Exception:
+        share = ""
+    desc = (f"{tip['summary'].strip()}\n\n{share}GTA 6 Secrets · Part {part}. Follow for Part {part + 1} 🔔\n\n"
             f"🎥 Clip: {who} {clip_url} (all credit to the streamer)\n📖 Guide source: {tip['source_url']}\n\n"
             "Fan page. Not affiliated with Rockstar Games.\n#GTA6 #GTA6Secrets #GTAVI #GTA6Tips #Shorts")
     kw = [k.lower() for k in tip["keywords"]][:4]
@@ -610,7 +663,7 @@ def make_copy(tip, clip, part):
     ig = (f"GTA 6 SECRETS · PART {part}: {tip['title']}\n\n{tip['summary'].strip()}\n\n"
           f"📍 WHERE: {tip['where']}\n🎁 WHAT YOU GET: {tip['what']}\n\n🎥 Clip: {who} ({clip.get('credit') or clip_url}), all credit to the streamer\n"
           f"📖 Source: {tip['source_url']}\nFan page. Not affiliated with Rockstar Games.\n\n{hashtags}\n\n"
-          f"Save this for later 🔖 What should Part {part + 1} be?")
+          f"{share}Save this for later 🔖 What should Part {part + 1} be?")
     return title, desc, tags, ig[:2200]
 
 # ------------------------------------------------------------------------------------------------------------- lock
@@ -649,7 +702,8 @@ def write_outputs(tip, clip, part, info, test_only=False):
             "source_url": clip.get("url", ""), "sources": [tip["source_url"]], "footage": [clip.get("url", "")] if clip.get("url") else [],
             "uploader": clip.get("uploader", ""), "clip_title": clip.get("title", ""), "seconds": info["seconds"], "window": info,
             "visual_safety": clip.get("visual_safety", "unchecked"), "speech_check": clip.get("speech", ""),
-            "vision": {k: v for k, v in (clip.get("vision") or {}).items() if k != "times"}, "layout": info["layout"], "test_only": test_only}
+            "vision": {k: v for k, v in (clip.get("vision") or {}).items() if k != "times"}, "layout": info["layout"], "test_only": test_only,
+            "structure": info.get("structure", "classic"), "key_at": info.get("key_at"), "share_cta": info.get("share_cta", "")}
     json.dump(meta, open(OUT / "metadata.json", "w"), indent=1, ensure_ascii=False)
     json.dump({"pass": not test_only and "verbatim" in tip.get("verified", ""), "verified": tip.get("verified", ""),
                "quote": tip.get("quote"), "source_url": tip["source_url"]}, open(OUT / "tip_check.json", "w"), indent=1, ensure_ascii=False)
