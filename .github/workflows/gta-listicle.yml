@@ -1,0 +1,104 @@
+name: GTA VI Listicle Shorts - "5 crazy things in GTA 6" (sourced script, real gameplay montage)
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Optional angle, e.g. 'how the wanted system works in GTA 6'. Blank = next unused angle from config.json"
+        required: false
+      preview:
+        description: "Preview only: send the Short to Telegram, do NOT upload, do NOT mark the topic used"
+        type: boolean
+        default: true
+      hand_upload:
+        description: "Hand upload: skip the YouTube API (no quota used), Telegram gets the file + title + description to post yourself"
+        type: boolean
+        default: true
+  # Turn on once a few previews look right (times UTC; 13:00 UTC = 6:30 PM IST). Scheduled runs act as preview=false.
+  # schedule:
+  #   - cron: "0 13 * * *"
+permissions:
+  contents: write
+concurrency: { group: gtaclips, cancel-in-progress: false }   # same group as the clip Shorts: no overlapping uploads/git pushes
+jobs:
+  listicle:
+    runs-on: ${{ vars.BOTBEAT_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 40
+    defaults: { run: { working-directory: gtaclips } }
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}        # optional; keyless Twitch GraphQL is used without it
+      TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+      YTDLP_HOME_PROXY: ${{ secrets.YTDLP_HOME_PROXY }}
+      # scheduled runs (if the cron above is enabled) count as preview=false, hand_upload=false
+      PREVIEW: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.preview || 'false' }}
+      HAND: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.hand_upload || 'false' }}
+    steps:
+      - uses: actions/checkout@v5
+        with: { ref: "${{ github.ref_name }}" }
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core && pip install -q -U --pre "yt-dlp[default]" edge-tts gtts pillow numpy "opencv-python-headless<5" faster-whisper
+      - name: Make the listicle Short (topic -> sourced script -> fact gate -> voice -> gameplay montage -> text)
+        id: make
+        env: { TOPIC: "${{ github.event.inputs.topic }}" }
+        run: |
+          set +e
+          python -u listicle.py 2>&1 | tee err.txt; RC=${PIPESTATUS[0]}
+          set -e
+          if [ $RC -eq 0 ]; then echo "made=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "made=false" >> "$GITHUB_OUTPUT"
+          if [ $RC -eq 6 ]; then
+            python -c "import sys,json; sys.path.insert(0,'../common'); from notify import telegram; f=json.load(open('out/fact_check.json')); telegram('GTA Listicle: the script FAILED the fact gate, nothing made. ' + '; '.join((f.get('shape_faults') or []) + (f.get('faults') or []))[:1500])" || true
+            exit 0
+          fi
+          if [ $RC -eq 3 ]; then
+            python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram('GTA Listicle: not enough clean GTA 6 gameplay on Twitch/Kick right now, nothing made. Try again later.')" || true
+            exit 0
+          fi
+          python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "GTA Listicle failed: $(tail -c 300 err.txt)" || true
+          exit 1
+      - name: Gauntlet - fresh AI reviewer + fact check must say YES
+        id: gate
+        if: steps.make.outputs.made == 'true'
+        run: |
+          set +e; python listicle_gate.py; RC=$?; set -e
+          if [ $RC -eq 0 ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          python -c "import sys,json; sys.path.insert(0,'../common'); from notify import telegram; g=json.load(open('out/gate.json')); telegram('GTA Listicle: the reviewer said NO, nothing posted. Faults: ' + '; '.join(g.get('faults',[])))" || true
+      - name: Preview only - send to Telegram, no upload, topic NOT marked used
+        if: steps.make.outputs.made == 'true' && env.PREVIEW == 'true'
+        env: { BOTBEAT_PREVIEW: "1" }   # runs even if the gate said no, so you can see why
+        run: |
+          python send_short.py
+          python -c "import sys,json; sys.path.insert(0,'../common'); from notify import telegram; m=json.load(open('out/metadata.json')); g=json.load(open('out/gate.json')) if __import__('os').path.exists('out/gate.json') else {}; telegram('Listicle preview: ' + m['topic'] + '\nGate: ' + ('YES' if g.get('pass') else 'NO ' + '; '.join(g.get('faults',[]))) + '\nFact check verifier: ' + m['fact_check'].get('verifier','?') + '\n\nTITLE: ' + m['title'] + '\n\nSCRIPT:\n' + m['voiceover'])" || true
+      - name: Lock topic as used before posting (no repeats from re-runs/overlaps)
+        id: lock
+        if: steps.gate.outputs.ok == 'true' && env.PREVIEW != 'true'
+        run: |
+          set +e; python listicle.py --lock; RC=$?
+          if [ $RC -eq 4 ]; then echo "ok=false" >> "$GITHUB_OUTPUT"; echo "topic already posted, skipped"; exit 0; fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+      - name: Upload to YouTube (API routes)
+        if: steps.lock.outputs.ok == 'true' && env.HAND != 'true'
+        continue-on-error: true
+        env:
+          GTA_YT_CLIENT_ID: ${{ secrets.GTA_YT_CLIENT_ID }}
+          GTA_YT_CLIENT_SECRET: ${{ secrets.GTA_YT_CLIENT_SECRET }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          GTA_YT_REFRESH_TOKEN: ${{ secrets.GTA_YT_REFRESH_TOKEN }}
+        run: python upload_youtube.py || echo "all upload routes failed, Telegram gets the file"
+      - name: Send it to you (share kit, or hand-upload kit)
+        if: steps.lock.outputs.ok == 'true'
+        env: { HAND_UPLOAD: "${{ env.HAND == 'true' && '1' || '' }}" }
+        run: python send_short.py
+      - uses: actions/upload-artifact@v5
+        if: steps.make.outputs.made == 'true'
+        with: { name: gta-listicle, path: gtaclips/out/, retention-days: 7 }
+      - name: Remember used topics + gate verdicts
+        if: always() && steps.lock.outputs.ok == 'true'
+        run: python ../common/gitsave.py "gtaclips - listicle used" --union gtaclips/listicle_used.json --mirror gtaclips/upload_state.json --mirror gtaclips/RULES.md
