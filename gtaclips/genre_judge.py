@@ -37,7 +37,8 @@ DEFS = {
     "emotional": "a heartfelt, wholesome or touching moment",
 }
 NOT_DEFS = {
-    "funny": "tense or serious scenes, plain driving or walking around, dark/creepy moments, cutscenes, menus, the streamer just talking calmly",
+    "funny": "tense or serious scenes, plain driving or walking around, dark/creepy moments, cutscenes, menus, the streamer just talking calmly, "
+             "story-mission dialogue or NPC phone calls (the GAME's script is not the streamer being funny), a streamer who is not visibly laughing or reacting",
 }
 
 def log(*a): print("genre_judge:", *a, file=sys.stderr, flush=True)
@@ -111,7 +112,9 @@ Score 0-10: 10 = a perfect, laugh-out-loud / unmistakable example of the genre; 
 
 beats: the moments a meme editor would hit with a sound effect, seconds from the start of THIS clip (0 to {dur:.0f}),
 type one of {types}, strength 1-3 (3 = the big one). best_t = the single best moment (the payoff), in seconds.
-safe = false if it shows full nudity, a sexual act, gore, a big stream alert/donation/sub overlay, a slur, or is not GTA 6 footage.
+The streamer's OWN reaction (face cam / voice) or a visible absurd event must deliver the genre; scripted game dialogue,
+subtitles and cutscenes do NOT count. If nothing actually happens (just driving, talking, a phone call), score 0-3.
+safe = false if it shows full nudity, a slur in speech OR in on-screen/in-game subtitles, a sexual act, gore, a big stream alert/donation/sub overlay, a slur, or is not GTA 6 footage.
 Swimwear/shirtless/webcam is fine.
 
 Reply ONLY JSON: {{"score": 0-10, "what_happens": "one plain sentence", "why": "why it fits or not", "said": "the key line spoken (or empty)",
@@ -161,7 +164,8 @@ Title (may be wrong): {meta.get('title','')}. Transcript with second marks: {lin
 Be harsh. Reply ONLY JSON: {{"score": 0-10, "what_happens": "...", "why": "...", "said": "key line", "best_t": seconds,
 "beats": [{{"t": seconds, "type": "{'|'.join(BEAT_TYPES)}", "strength": 1-3}}], "safe": true}}""", min_len=20)
     v = _clean(json.loads(re.search(r"\{.*\}", out, re.S).group(0)), dur)
-    v["score"] = min(v["score"], 8.0); v["by"] = "transcript"; v["dur"] = dur
+    # It cannot SEE the clip (game NPC dialogue looks like the streamer talking), so in strict genre mode it can never pass alone.
+    v["score"] = min(v["score"], float(os.environ.get("GENRE_TEXT_CAP", "6"))); v["by"] = "transcript"; v["dur"] = dur
     return v
 
 def judge_file(path, meta, g=None):
@@ -197,6 +201,11 @@ def pick(cands, g=None):
     if not g: return cands[0] if cands else None
     rx = genre.pattern(g)
     cands = [m for m in cands if judgeable(m)]
+    names = genre.streamers(g)
+    if names:   # "funny ishowspeed": ONLY that streamer's clips, never someone else's
+        norm = lambda x: re.sub(r"[^a-z0-9]", "", (x or "").lower())
+        cands = [m for m in cands if any(n in norm(m.get("uploader")) or n in norm(m.get("title")) or n in norm(m.get("url")) for n in names)]
+        log(f"genre '{g}': {len(cands)} clips from {', '.join(names)}")
     titled = [m for m in cands if rx and rx.search(genre.text_of(m))]
     order = titled + [m for m in cands if m not in titled]
     order = order[:MAX_CHECK]
@@ -223,6 +232,7 @@ def pick(cands, g=None):
         (HERE / "out" / "genre_report.json").write_text(json.dumps({"genre": g, "min_score": MIN_SCORE, "checked": report}, indent=1))
     except Exception: pass
     if not best:
+        if not os.environ.get("GEMINI_API_KEY"): log("no GEMINI_API_KEY: the judge could only read transcripts, which can't pass strict mode. Add the key.")
         log(f"no clip truly fits '{g}' (needs {MIN_SCORE:.0f}+/10)."); return None
     return _apply(dict(best[0]), best[1], g)
 
@@ -247,6 +257,7 @@ def tell_no_fit():
     lines = "\n".join(f"- {r['score']:.0f}/10: {(r.get('what') or r.get('title') or '')[:90]}" for r in sorted(seen, key=lambda r: -r["score"])[:4])
     msg = (f"GTA VI Clips: no clip really fit '{g}' this run, so nothing was made (no wrong video sent). "
            f"The judge watched {len(seen)} clips, a clip needs {MIN_SCORE:.0f}+/10." + (f"\nBest it saw:\n{lines}" if lines else "") +
+           ("\nGEMINI_API_KEY is missing, so the judge could not watch the clips. Add it in repo secrets." if not os.environ.get("GEMINI_API_KEY") else "") +
            "\nTry again in a few hours, or paste a clip link in the url box.")
     from notify import telegram
     telegram(msg)

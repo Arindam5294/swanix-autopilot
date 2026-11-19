@@ -42,6 +42,20 @@ def mood():
         if k in MOOD: return MOOD[k]
     return "funny" if re.search(r"funny|lol|troll|meme|scream|fail", g) else "serious" if g else ""
 
+STREAMER_ALIASES = {"speed": "ishowspeed", "ishowspeed": "ishowspeed", "xqc": "xqc", "kai": "kaicenat", "kaicenat": "kaicenat"}
+
+def streamers(g=None):
+    """Words in the genre box that are not genres or style words = streamer names ("funny ishowspeed" -> ["ishowspeed"])."""
+    g = name() if g is None else g
+    style = {"clip", "clips", "moment", "moments", "video", "best", "from", "the", "and", "with", "gta", "gta6"}
+    out = []
+    for w in re.split(r"[\s,/+]+", g.lower()):
+        w = re.sub(r"[^a-z0-9_]", "", w)
+        if w in STREAMER_ALIASES: out.append(STREAMER_ALIASES[w]); continue
+        if w and w not in GENRES and w not in style and len(w) > 2 and not any(re.fullmatch(GENRES[k], w) for k in GENRES):
+            out.append(STREAMER_ALIASES.get(w, w).replace("_", ""))
+    return list(dict.fromkeys(out))
+
 def text_of(c): return " ".join(str(c.get(k, "")) for k in ("title", "desc", "uploader"))
 
 def filter_pool(pool, label="clips"):
