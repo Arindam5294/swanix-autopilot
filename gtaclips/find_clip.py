@@ -437,6 +437,9 @@ def main():
         if not cur or m["views"] > cur["views"]:
             by_url[m["url"]] = m
     pool = list(by_url.values())
+    try:   # GTA_GENRE box: keep only clips that fit the genre (falls back to the normal pick if none fit)
+        import genre; pool = genre.filter_pool(sorted(pool, key=lambda x: -score(x)), "clips")
+    except Exception as e: print("genre filter skipped:", e, file=sys.stderr)
 
     # Apply the same filters as before, across all regions.
     filtered = [m for m in pool

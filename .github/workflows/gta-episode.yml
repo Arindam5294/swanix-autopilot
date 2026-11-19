@@ -8,6 +8,18 @@ on:
         description: "Preview only: send to Telegram, do NOT upload"
         type: boolean
         default: true
+      minutes:
+        description: "Length in minutes, 3 to 10 (blank = auto)"
+        required: false
+      genre:
+        description: "Genre: funny, rage, racing, police, chaos, fails, wtf, clutch, scary, emotional, or your own words. Blank = most viral"
+        required: false
+      sfx:
+        description: "Sound effects: blank = match the genre, funny, serious, soft, off"
+        required: false
+      logo_url:
+        description: "Client logo for THIS video: imgbb link (ibb.co/...). Different client = different link. Blank = no logo"
+        required: false
 permissions: { contents: write }
 concurrency: { group: gta-episode, cancel-in-progress: false }
 jobs:
@@ -24,17 +36,30 @@ jobs:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
       TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+      EP_MINUTES: ${{ github.event.inputs.minutes || vars.EP_MINUTES || '' }}
+      GTA_GENRE: ${{ github.event.inputs.genre || vars.GTA_GENRE || '' }}
+      GTA_SFX: ${{ github.event.inputs.sfx || vars.GTA_SFX || '' }}
+      BRAND_LOGO_URL: ${{ github.event.inputs.logo_url || '' }}   # per run only, never a saved/default logo
+      BRAND_LOGO: ${{ vars.BRAND_LOGO || '' }}
+      BRAND_MARKS: out_ep/marks.json
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core && pip install -q -U "yt-dlp[default]" pillow
+      - name: Check the client logo link first (a bad link stops here, in seconds)
+        if: github.event.inputs.logo_url != ''
+        run: python brand.py --check
       - name: Build the episode
         id: ep
         run: |
           set +e; python episode.py; RC=$?; set -e
           if [ $RC -eq 0 ]; then echo "made=true" >> "$GITHUB_OUTPUT"; else
             python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram('GTA episode: not enough fresh Twitch/Kick clips today.')" || true; fi
+      - name: Client logo watermark + genre sound effects (a logo that fails STOPS the run; sound-effect errors keep the original)
+        if: steps.ep.outputs.made == 'true'
+        continue-on-error: ${{ github.event.inputs.logo_url == '' }}
+        run: python brand.py out_ep/episode.mp4
       - name: Gauntlet review
         id: gate
         if: steps.ep.outputs.made == 'true'

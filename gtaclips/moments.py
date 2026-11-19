@@ -94,6 +94,10 @@ def best_window(clip, work):
     j = info(clip["url"])
     dur = float(j.get("duration") or clip.get("duration") or 0)
     if dur and dur <= 75: return None
+    try:   # AI judge: the candidate peak that is truly engaging and fits GTA_GENRE (old peak pick if this fails)
+        import genre_moments; g = genre_moments.vod_window(clip, work, j, dur)
+        if g: print(f"moments: {g[2]} at {int(g[0])}s", file=sys.stderr); return g
+    except Exception as e: print("moments: AI pick failed, using peak pick:", str(e)[:200], file=sys.stderr)
     for fn in (lambda: from_heatmap(j), lambda: from_chat(clip["url"], dur, work), lambda: from_audio(clip["url"], dur, work)):
         try:
             hit = fn()

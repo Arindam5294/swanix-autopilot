@@ -174,6 +174,9 @@ HINDI EDITION (Indian audience). Override the language rules above:
     pat = HERE / "THUMBNAILS.md"
     if pat.exists():   # weekly outlier study (outliers.py): copy what's winning on GTA channels right now
         prompt += "\nTitle/hook patterns that are beating other GTA channels this week (follow them, stay honest):\n" + pat.read_text()[:1800]
+    try:
+        import genre; prompt += genre.prompt_line()   # write in the chosen genre's style
+    except Exception: pass
     txt = ask(prompt + "\nAnswer with valid JSON only.", min_len=200)
     s = json.loads(re.search(r"\{.*\}", txt, re.S).group(0))
     if clip.get("kind") in ("live", "stream", "twitch_clip") or clip.get("moment"): s["_min_words"] = 10
@@ -412,7 +415,10 @@ def main():
     try:
         if kind == "live":
             src = moments.record_live(clip["url"], WORK, CFG.get("live_record_seconds", 420))
-            hit = moments.audio_peak(src)
+            try:   # AI reads what was said at each loud spike and picks the moment that fits the genre
+                import genre_moments; hit = genre_moments.live_pick(src, clip)
+            except Exception: hit = None
+            hit = hit or moments.audio_peak(src)
             st = max(0, (hit[0] if hit else 0) - moments.PRE); print("live moment:", hit, file=sys.stderr)
             cut = WORK / "src.mp4"; sh("ffmpeg", "-y", "-v", "error", "-ss", str(st), "-i", str(src), "-t", str(moments.WIN), "-c", "copy", str(cut)); src = cut
         elif kind == "stream" or (kind == "video" and clip.get("duration", 0) > 75):

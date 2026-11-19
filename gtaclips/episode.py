@@ -24,7 +24,10 @@ def vph(c):
 def target_seconds():
     m = re.search(r"long median (\d+)s", (HERE / "THUMBNAILS.md").read_text()) if (HERE / "THUMBNAILS.md").exists() else None
     s = int(m.group(1)) if m else CFG.get("episode_minutes", 8) * 60
-    return max(240, min(s, 900))   # 4-15 min
+    if os.environ.get("EP_MINUTES", "").strip():
+        try: return max(180, min(int(float(os.environ["EP_MINUTES"]) * 60), 600))   # you chose 3-10 min
+        except ValueError: pass
+    return max(180, min(s, 600))   # 3-10 min
 
 def sh(*a):
     r = subprocess.run(list(map(str, a)), capture_output=True, text=True)
@@ -39,6 +42,9 @@ def main():
     used = set(json.loads(EP_USED.read_text())) if EP_USED.exists() else set()
     pool = find_clip.twitch_clips() + find_clip.kick_clips()
     pool = [c for c in pool if c["url"] not in used and not SKIP.search(c["title"]) and c.get("duration", 30) <= 60]
+    try:   # GTA_GENRE box: only clips that fit the genre, if at least 4 do
+        import genre; _g = genre.filter_pool(pool, "Twitch/Kick clips"); pool = _g if len(_g) >= 4 else pool
+    except Exception as e: print("genre filter skipped:", e, file=sys.stderr)
     # one clip per streamer per episode first, then fill
     pool.sort(key=lambda c: -vph(c))
     picked, per, total, goal = [], {}, 0.0, target_seconds()
@@ -77,12 +83,17 @@ def main():
         d = float(sh("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", p))
         chapters.append(f"{int(t)//60}:{int(t)%60:02d} {lab} - {c['uploader']} {c['url']}"); t += d; parts.append(p); used.add(c["url"])
     if len(parts) < 4: print("episode: too few clips downloaded", file=sys.stderr); sys.exit(2)
+    (OUT / "marks.json").write_text(json.dumps([int(c.split()[0].split(":")[0]) * 60 + int(c.split()[0].split(":")[1]) for c in chapters]))   # clip starts, for sound effects
     (WORK / "list.txt").write_text("".join(f"file '{p}'\n" for p in parts))
     sh("ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", WORK / "list.txt", "-c", "copy", "-movflags", "+faststart", OUT / "episode.mp4")
     if not chapters[0].startswith("0:00"): chapters[0] = "0:00" + chapters[0].split(" ", 1)[1]
     pat = (HERE / "THUMBNAILS.md").read_text()[:2500] if (HERE / "THUMBNAILS.md").exists() else ""
     names = ", ".join(dict.fromkeys(c["uploader"] for c in picked))
-    copy = ask(f"""Write YouTube copy for a daily GTA 6 best-stream-moments compilation. Streamers: {names}. Clip labels: {labels}.
+    gl = ""
+    try:
+        import genre; gl = genre.prompt_line()
+    except Exception: pass
+    copy = ask(gl + f"""Write YouTube copy for a daily GTA 6 best-stream-moments compilation. Streamers: {names}. Clip labels: {labels}.
 Patterns that win on GTA channels:\n{pat}\nReturn ONLY JSON: {{"title": "<70 chars, contains GTA 6, no fake promises>",
 "thumb_words": ["2-3 WORDS", "2-3 WORDS", "2-3 WORDS"], "intro": "2 sentences", "tags": ["15 tags"]}}""", min_len=50)
     j = json.loads(re.search(r"\{.*\}", copy, re.S).group(0))

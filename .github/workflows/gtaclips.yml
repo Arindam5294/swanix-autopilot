@@ -40,6 +40,15 @@ on:
         description: "Hand upload: skip the YouTube API (no quota used), Telegram gets the file + title + description to post yourself"
         type: boolean
         default: false
+      genre:
+        description: "Genre: funny, rage, racing, police, chaos, fails, wtf, clutch, scary, emotional, or type your own words. Blank = most viral"
+        required: false
+      sfx:
+        description: "Sound effects: blank = match the genre, funny, serious, soft, off"
+        required: false
+      logo_url:
+        description: "Client logo for THIS video: imgbb link (ibb.co/...). Different client = different link. Blank = no logo"
+        required: false
 permissions:
   contents: write
 concurrency: { group: gtaclips, cancel-in-progress: false }
@@ -67,6 +76,10 @@ jobs:
       KICK_CLIENT_ID: ${{ secrets.KICK_CLIENT_ID }}            # optional: Kick live GTA VI streams
       KICK_CLIENT_SECRET: ${{ secrets.KICK_CLIENT_SECRET }}
       GTA_LANG: ${{ (startsWith(github.event.schedule, '31 14 ') && 'hi') || github.event.inputs.lang || '' }}   # hi = Hindi edition
+      GTA_GENRE: ${{ github.event.inputs.genre || vars.GTA_GENRE || '' }}       # scheduled runs use repo variable GTA_GENRE
+      GTA_SFX: ${{ github.event.inputs.sfx || vars.GTA_SFX || '' }}
+      BRAND_LOGO_URL: ${{ github.event.inputs.logo_url || '' }}   # per run only, never a saved/default logo
+      BRAND_LOGO: ${{ vars.BRAND_LOGO || '' }}   # set repo variable BRAND_LOGO=off to stop the watermark
       BOTBEAT_VOICE: edge   # GTA channel uses its own edge-tts voice, not the Botbeat narrator
       YTDLP_HOME_PROXY: ${{ secrets.YTDLP_HOME_PROXY }}
     steps:
@@ -99,6 +112,9 @@ jobs:
           sleep 8
           if curl -s --max-time 15 -x socks5h://127.0.0.1:40000 https://www.cloudflare.com/cdn-cgi/trace | grep -q "warp=on"; then echo "YTDLP_PROXY=socks5://127.0.0.1:40000" >> "$GITHUB_ENV"; echo "WARP on"; fi
       - uses: denoland/setup-deno@v2
+      - name: Check the client logo link first (a bad link stops here, in seconds)
+        if: github.event.inputs.logo_url != ''
+        run: python brand.py --check
       - name: Pick a viral clip
         id: pick
         env: { MANUAL_URL: "${{ github.event.inputs.url }}", TOPIC: "${{ github.event.inputs.topic }}", SKIP_YOUTUBE: "${{ github.event_name == 'schedule' && !startsWith(github.event.schedule, '31 14 ') && !endsWith(github.event.schedule, ' 19 11 *') && '1' || '' }}" }   # scheduled: Twitch/Kick only, saves API quota for uploads
@@ -165,6 +181,10 @@ jobs:
           fi
           python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram(sys.argv[1])" "GTA VI Clips failed: $(tail -c 300 err.txt)" || true
           exit 1
+      - name: Client logo watermark + genre sound effects (a logo that fails STOPS the run; sound-effect errors keep the original)
+        if: steps.make.outputs.made == 'true'
+        continue-on-error: ${{ github.event.inputs.logo_url == '' }}
+        run: python brand.py out/short.mp4 out/short_x.mp4
       - name: Gauntlet - a fresh AI reviewer must say YES before anything posts
         id: gate
         if: steps.make.outputs.made == 'true'
