@@ -74,6 +74,7 @@ jobs:
         env: { BOTBEAT_PREVIEW: "1" }   # runs even if the gate said no, so you can see why
         run: |
           python send_short.py
+          python listicle.py --lock-footage || echo "couldn't mark preview footage used"
           python -c "import sys,json; sys.path.insert(0,'../common'); from notify import telegram; m=json.load(open('out/metadata.json')); g=json.load(open('out/gate.json')) if __import__('os').path.exists('out/gate.json') else {}; telegram('Listicle preview: ' + m['topic'] + '\nGate: ' + ('YES' if g.get('pass') else 'NO ' + '; '.join(g.get('faults',[]))) + '\nFact check verifier: ' + m['fact_check'].get('verifier','?') + '\n\nTITLE: ' + m['title'] + '\n\nSCRIPT:\n' + m['voiceover'])" || true
       - name: Lock topic as used before posting (no repeats from re-runs/overlaps)
         id: lock

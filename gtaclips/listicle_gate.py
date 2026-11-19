@@ -37,6 +37,6 @@ def hard_checks():
 gate.hard_checks = hard_checks
 # the fresh reviewer also checks listicle-specific visual rules (no braces here: gate formats BRIEF with .format)
 gate.BRIEF = gate.BRIEF.replace("Look at the frames", "This is a fast-cut GTA 6 facts listicle (many short gameplay cuts, own sourced script). "
-    "In-game nudity is allowed, never say NO for it. Say NO if any frame shows black cinematic bars, or the video is letterboxed. Look at the frames", 1)
+    "Bikinis, lingerie and thongs are fine. Say NO if any frame shows full nudity (bare genitals, bare breasts, naked NPCs), a stream sub/donation alert overlay, black cinematic bars, or the video is letterboxed. Look at the frames", 1)
 if __name__ == "__main__":
     gate.main()

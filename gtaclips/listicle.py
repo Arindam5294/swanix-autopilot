@@ -18,7 +18,7 @@ Usage:
 Test switches: --script-file s.json (skip the LLM writer), --footage-dir DIR (local mp4s instead of Twitch/Kick),
                --skip-verifier (no LLM fact verifier, deterministic checks still run), --music FILE.
 Exit codes: 0 made | 3 no usable footage | 6 script failed the fact gate / AI refusal (nothing made) | 1 other error."""
-import argparse, asyncio, datetime, difflib, hashlib, html, json, os, pathlib, random, re, shutil, subprocess, sys
+import math, time, argparse, asyncio, datetime, difflib, hashlib, html, json, os, pathlib, random, re, shutil, subprocess, sys
 import urllib.parse, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
@@ -50,7 +50,7 @@ DEFAULT_TOPICS = [
     "5 ways GTA 6 makes fun of real life",
 ]
 NUM_WORDS = ["one", "two", "three", "four", "five", "six", "seven"]
-NSFW = ["racist", "slur", "n word", "f slur", "gets called"]
+NSFW = ["nudist", "naked", "nude", "racist", "slur", "n word", "f slur", "gets called"]
 
 def log(*a): print("listicle:", *a, file=sys.stderr, flush=True)
 
@@ -480,9 +480,32 @@ def tokens_for(s):
     return toks
 
 # ------------------------------------------------------------------------------------------------------------ footage
+def more_twitch_clips():
+    """Bigger keyless pool: top GTA VI clips filtered by language server-side (up to ~100 per query, day/week/all-time)."""
+    import find_clip
+    game = json.dumps(find_clip.CFG.get("twitch_game", "Grand Theft Auto VI"))
+    langs = [l.upper() for l in find_clip.CFG.get("twitch_languages", ["en"])]
+    out, seen = [], set()
+    for period in ("LAST_DAY", "LAST_WEEK", "ALL_TIME"):
+        try:
+            d = find_clip.twitch_gql('{ game(name:%s){ clips(first:100, criteria:{period:%s, sort:VIEWS_DESC, languages:[%s]}){ edges{ node{ slug url title viewCount createdAt durationSeconds language broadcaster{login displayName} } } } } }'
+                                     % (game, period, ",".join(langs)))
+            for e in ((d.get("game") or {}).get("clips") or {}).get("edges") or []:
+                c = e["node"]; b = c.get("broadcaster") or {}
+                url = c.get("url") or f"https://clips.twitch.tv/{c['slug']}"
+                if url in seen: continue
+                seen.add(url)
+                out.append({"url": url, "title": c.get("title", ""), "desc": f"Twitch clip from {b.get('displayName','a streamer')}'s GTA 6 stream.",
+                            "views": c.get("viewCount", 0), "uploader": b.get("displayName", ""), "kind": "twitch_clip",
+                            "published": c.get("createdAt", ""), "region": "TW", "duration": c.get("durationSeconds", 0)})
+        except Exception as e:
+            log(f"twitch {period} pool failed:", str(e)[:120])
+    log(f"footage: {len(out)} clips in the wider Twitch pool")
+    return out
+
 def footage_candidates(used):
     import find_clip   # keyless Twitch GraphQL + Kick public clips (find_clip's behaviour is unchanged)
-    c = find_clip.twitch_clips() + find_clip.kick_clips()
+    c = find_clip.twitch_clips() + more_twitch_clips() + find_clip.kick_clips()
     seen, out = set(), []
     skip = NSFW + [w.lower() for w in C("listicle_skip_words", [])]
     for x in c:
@@ -490,8 +513,9 @@ def footage_candidates(used):
         if x["url"] in seen or find_clip.bad(t) or any(w in t for w in skip): continue
         if x.get("duration") and x["duration"] < C("listicle_min_clip_seconds", 15): continue
         seen.add(x["url"]); out.append(x)
-    fresh = [x for x in out if x["url"] not in used]
-    rest = [x for x in out if x["url"] in used]
+    fresh = [x for x in out if x["url"] not in used]   # a clip used in ANY earlier listicle (post or preview) never comes back
+    rest = []
+    log(f"footage: {len(fresh)} never-used clips ({len(out) - len(fresh)} already used skipped)")
     rnd = random.Random(datetime.date.today().isoformat())
     rnd.shuffle(fresh)
     # Twitch first (language-filtered, real titles), Kick after; big clips first inside each, the rest shuffled
@@ -608,25 +632,30 @@ def vision_ok(path, rect, dur):
     """Gemini vision look at 4 frames of the crop (only when GEMINI_API_KEY is set): real GTA 6 gameplay, YouTube-safe,
     no streamer cam filling the shot. Clip titles like 'wtf' say nothing, so look at the pixels."""
     key = os.environ.get("GEMINI_API_KEY")
-    if not key or not C("listicle_vision_check", True): return True, "not checked"
+    if not C("listicle_vision_check", True): return True, "not checked (disabled in config)"
+    if not key: raise FootageError("GEMINI_API_KEY missing: footage can't be checked for nudity/alerts, refusing to build")
     import base64
     x, y, cw, ch = rect; parts = []
-    for i in range(4):
-        b = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{dur * (i + 0.5) / 4:.2f}", "-i", str(path), "-frames:v", "1",
+    for i in range(6):
+        b = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{dur * (i + 0.5) / 6:.2f}", "-i", str(path), "-frames:v", "1",
                             "-vf", f"crop={cw}:{ch}:{x}:{y},scale=270:-2", "-f", "image2", "-c:v", "mjpeg", "-"], capture_output=True).stdout
         if b: parts.append({"inline_data": {"mime_type": "image/jpeg", "data": base64.b64encode(b).decode()}})
-    q = ("In-game nudity and adult scenes are FINE, never reject for them. These are 4 frames of B-roll for a YouTube Short about GTA 6 gameplay. Answer ONLY JSON "
-         '{"ok": true|false, "why": "..."}. ok=false if ANY frame shows: gore, a real person/webcam filling the shot, a menu/loading/black screen, or something that is not video game footage.')
-    try:
-        body = {"contents": [{"parts": [{"text": q}] + parts}], "generationConfig": {"temperature": 0, "maxOutputTokens": 200}}
-        rq = urllib.request.Request(f"https://generativelanguage.googleapis.com/v1beta/models/{os.environ.get('GATE_MODEL', 'gemini-2.5-flash')}:generateContent",
-                                    json.dumps(body).encode(), {"Content-Type": "application/json", "x-goog-api-key": key})
-        d = json.loads(urllib.request.urlopen(rq, timeout=90).read())
-        txt = "".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"])
-        v = json.loads(re.search(r"\{.*\}", txt, re.S).group(0))
-        return bool(v.get("ok")), v.get("why", "")
-    except Exception as e:
-        return True, f"vision check failed ({str(e)[:60]}), kept"
+    q = ("NUDITY RULE: swimwear, bikinis, lingerie, thongs, underwear and shirtless characters are FINE. Full nudity is NOT fine: any visible bare genitals, bare female nipples/breasts, or fully naked characters (e.g. nudist-beach NPCs), even small or in the background. These are 6 frames of B-roll for a YouTube Short about GTA 6 gameplay. Answer ONLY JSON "
+         '{"ok": true|false, "why": "..."}. ok=false if ANY frame shows: full nudity (per the rule), a sexual act, gore, a real person/webcam filling the shot, '
+         'a stream alert or overlay (sub/donation/follower alerts, "gifted subs", chat box, big streamer graphics), a menu/loading/black screen, or something that is not video game footage.')
+    err = ""
+    for attempt in range(3):
+        try:
+            body = {"contents": [{"parts": [{"text": q}] + parts}], "generationConfig": {"temperature": 0, "maxOutputTokens": 200}}
+            rq = urllib.request.Request(f"https://generativelanguage.googleapis.com/v1beta/models/{os.environ.get('GATE_MODEL', 'gemini-2.5-flash')}:generateContent",
+                                        json.dumps(body).encode(), {"Content-Type": "application/json", "x-goog-api-key": key})
+            d = json.loads(urllib.request.urlopen(rq, timeout=90).read())
+            txt = "".join(p.get("text", "") for p in d["candidates"][0]["content"]["parts"])
+            v = json.loads(re.search(r"\{.*\}", txt, re.S).group(0))
+            return bool(v.get("ok")), v.get("why", "")
+        except Exception as e:
+            err = str(e)[:60]; time.sleep(5 * (attempt + 1))
+    return False, f"vision check failed ({err}), clip skipped to be safe"
 
 def plan_cuts(total, item_starts, rnd):
     """Cut lengths 0.6-1.5 s (faster in the 3-second hook), a hard cut on every new item, none over 3.5 s."""
@@ -645,9 +674,12 @@ def plan_cuts(total, item_starts, rnd):
 def pick_segments(clips, cuts, rnd):
     """Each cut gets a fresh, never-reused stretch of gameplay, rotating across clips (prefers motion + scene cuts)."""
     segs, ci = [], rnd.randrange(len(clips))
+    cap = max(2, math.ceil(len(cuts) / max(1, len(clips))) + 1)   # spread cuts evenly: no clip dominates the montage
+    last = None
     for k, d in enumerate(cuts):
         for tries in range(len(clips)):
             c = clips[(ci + tries) % len(clips)]; a = c["a"]
+            if len(clips) > 1 and (c is last or sum(sg["clip"] is c for sg in segs) >= cap): continue
             best, bs = None, -1
             starts = [(t, True) for t in a["cuts"]] + [(i / 4, False) for i in range(0, a["n"], 2)]
             for st, is_cut in starts:
@@ -662,13 +694,13 @@ def pick_segments(clips, cuts, rnd):
             if best is not None:
                 c["used"].append((best, best + d))
                 segs.append({"clip": c, "start": best, "dur": d, "zoom": rnd.choice([1.0, 1.0, 1.08, 1.15])})
-                ci = (ci + tries + 1) % len(clips); break
+                last = c; ci = (ci + tries + 1) % len(clips); break
         else:
             raise FootageError(f"ran out of unused gameplay at cut {k+1}/{len(cuts)}")
     return segs
 
-SAFETY_Q = ("In-game nudity and adult scenes are FINE, never flag them. You check B-roll frames for a YouTube Short about GTA 6. Frames are numbered from 0 in the order given. "
-            "List every frame that shows ANY of: gore, a real person or webcam, a menu/loading/black screen, a big on-screen title card or chapter text, "
+SAFETY_Q = ("NUDITY RULE: swimwear, bikinis, lingerie, thongs, underwear and shirtless characters are FINE. Full nudity is NOT fine: any visible bare genitals, bare female nipples/breasts, or fully naked characters (e.g. nudist-beach NPCs), even small or in the background. You check B-roll frames for a YouTube Short about GTA 6. Frames are numbered from 0 in the order given. "
+            "List every frame that shows ANY of: full nudity (per the rule), a sexual act, a stream alert or overlay (sub/donation/follower alerts, gifted subs, chat box), gore, a real person or webcam, a menu/loading/black screen, a big on-screen title card or chapter text, "
             "cinematic black bars, or something that is not video game footage. Reply ONLY JSON: {\"bad\": [frame numbers]}.")
 
 def _frame_b64(path, t, rect):
@@ -708,14 +740,14 @@ def safe_segments(clips, segs, rnd):
     """Replace every cut the vision check flags (its stretch stays marked used, so it can never come back)."""
     for rnd_i in range(3):
         bad = unsafe_segments(segs)
-        if bad is None: return segs, "unchecked (no GEMINI_API_KEY or API error)"
+        if bad is None: raise FootageError("visual safety check couldn't run (Gemini API error): not building an unchecked video")
         if not bad: return segs, "checked: all cuts safe" + (" after replacing flagged cuts" if rnd_i else "")
-        log(f"visual safety: {len(bad)} cuts flagged (cam/title card...), replacing them")
+        log(f"visual safety: {len(bad)} cuts flagged (nudity/alerts/cam/title card...), replacing them")
         for c in clips:   # a clip with 3+ flagged cuts is dropped entirely
             if sum(segs[i]["clip"] is c for i in bad) >= 3: c["a"]["good"] = [False] * c["a"]["n"]
         for i in bad:
             segs[i] = pick_segments([c for c in clips if any(c["a"]["good"])], [segs[i]["dur"]], rnd)[0]
-    return segs, "FLAGGED cuts remained after 3 replacement rounds"
+    raise FootageError("flagged cuts (nudity/alerts) remained after 3 replacement rounds")
 
 def render_montage(segs, total):
     d_ = WORK / "segs"; shutil.rmtree(d_, ignore_errors=True); d_.mkdir(parents=True)
@@ -842,6 +874,16 @@ def final_mix(montage, wav, ass, total, music, dst):
        "-movflags", "+faststart", dst, timeout=1800)
 
 # --------------------------------------------------------------------------------------------------------------- main
+def lock_footage():
+    """Previews burn their clips too, so no two videos (posted or preview) ever share footage."""
+    m = json.loads((OUT / "metadata.json").read_text())
+    f = json.loads(USED_F.read_text()) if USED_F.exists() else []
+    f += [u for u in m.get("footage", []) if u not in f]
+    USED_F.write_text(json.dumps(f, indent=0))
+    r = subprocess.run([sys.executable, str(HERE.parent / "common" / "gitsave.py"), "gtaclips: listicle preview footage used",
+                        "--union", "gtaclips/listicle_used.json"], cwd=HERE.parent)
+    sys.exit(0 if r.returncode == 0 else 1)
+
 def lock():
     m = json.loads((OUT / "metadata.json").read_text())
     used = load_used()
@@ -859,11 +901,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--topic", default=os.environ.get("TOPIC", ""))
     ap.add_argument("--lock", action="store_true")
+    ap.add_argument("--lock-footage", action="store_true")
     ap.add_argument("--script-file"); ap.add_argument("--footage-dir"); ap.add_argument("--music")
     ap.add_argument("--no-music", action="store_true"); ap.add_argument("--skip-verifier", action="store_true")
     ap.add_argument("--seed", default="")
     a = ap.parse_args()
     if a.lock: return lock()
+    if a.lock_footage: return lock_footage()
     shutil.rmtree(WORK, ignore_errors=True); WORK.mkdir(parents=True); OUT.mkdir(exist_ok=True)
     for f in ("short.mp4", "short_x.mp4", "metadata.json", "gate.json", "youtube_link.txt", "upload_route.txt", "upload_notes.txt", "fact_check.json"):
         (OUT / f).unlink(missing_ok=True)
