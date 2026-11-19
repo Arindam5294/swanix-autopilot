@@ -18,3 +18,4 @@ Nothing posts until it says yes. Copy faults get one automatic fix and a re-chec
 ## Verdict log (newest last, keep 60)
 - 2026-11-18 13:28 NO  (1 check) 'xQc ne GTA 6 mein ki FIRST chori 🚗 #shorts': Pre-release gameplay leak (GTA 6 releases Nov 19 2026; footage before this date is a leak/unofficial)
 - 2026-11-18 15:51 NO  (2 checks) 'IShowSpeed Reacts to GTA 6 Launch Gameplay in Vice City! 🎮 #': Description falsely claims 'early access' and 'hours before the midnight launch'; the game is officially released worldwide as of 2026-11-18 11:00 UTC.; Misleading 'early access' framing resembles a 'play early' scam narrative.
+- 2026-11-19 07:36 NO  (1 check) 'GTA 5 FREE GUNS METHOD Before GTA 6 Launch 🎮 #shorts': Footage is GTA 5, not GTA 6; Title and description focus on GTA 5 content, not GTA 6
