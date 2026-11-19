@@ -13,3 +13,4 @@ Every post, newest last.
 | 2026-11-18 17:37 | Plane vs Skyscraper Physics Test in GTA 6 🛩️ #shorts |  |  |
 | 2026-11-18 19:19 | Cellbit Discovers RANDOM FOREST FIND in GTA 6 👀 #shorts |  |  |
 | 2026-11-19 03:49 | UFO Spotted Over Leonida Wetlands In GTA 6 🛸 #shorts |  |  |
+| 2026-11-19 04:46 | Millzaa finds BEST early loot in GTA 6 💰 #shorts |  |  |
