@@ -26,7 +26,7 @@ jobs:
   episode:
     if: ${{ github.event_name != 'schedule' || vars.GTA_EPISODE_CRON == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     defaults: { run: { working-directory: gtaclips } }
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -55,7 +55,7 @@ jobs:
         run: |
           set +e; python episode.py; RC=$?; set -e
           if [ $RC -eq 0 ]; then echo "made=true" >> "$GITHUB_OUTPUT"; else
-            python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram('GTA episode: not enough fresh Twitch/Kick clips today.')" || true; fi
+            [ $RC -eq 4 ] || python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram('GTA episode: not enough fresh Twitch/Kick clips today.')" || true; fi
       - name: Client logo watermark + genre sound effects (a logo that fails STOPS the run; sound-effect errors keep the original)
         if: steps.ep.outputs.made == 'true'
         continue-on-error: ${{ github.event.inputs.logo_url == '' }}

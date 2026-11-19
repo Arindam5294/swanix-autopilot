@@ -403,7 +403,12 @@ def main():
             m.update({"source": "trend-general", "mode": "general", "topic": topic}); print(json.dumps(m)); return
         if auto and m["title"] and not (on_topic(m["title"]) and not bad(m["title"] + m["desc"])):
             print(f"find_clip: trend clip off-topic, skipped: {m['title'][:80]!r}", file=sys.stderr); continue
-        m["source"] = "trend" if auto else "manual"; print(json.dumps(m)); return
+        m["source"] = "trend" if auto else "manual"
+        try:   # GTA_GENRE: your own link is never rejected, but the judge marks its beats/key moment for the edit + sound effects
+            import genre, genre_judge
+            if genre.name(): m = genre_judge.annotate(m)
+        except Exception as e: print("genre: could not judge your clip:", str(e)[:150], file=sys.stderr)
+        print(json.dumps(m)); return
 
     if os.environ.get("MANUAL_URL", "").strip():
         # You asked for ONE specific link. If it couldn't be used, stop here (Telegram says so) instead of posting something random.
@@ -437,9 +442,19 @@ def main():
         if not cur or m["views"] > cur["views"]:
             by_url[m["url"]] = m
     pool = list(by_url.values())
-    try:   # GTA_GENRE box: keep only clips that fit the genre (falls back to the normal pick if none fit)
-        import genre; pool = genre.filter_pool(sorted(pool, key=lambda x: -score(x)), "clips")
-    except Exception as e: print("genre filter skipped:", e, file=sys.stderr)
+    try:
+        import genre
+        g = genre.name()
+    except Exception: g = ""
+    if g:   # GTA_GENRE: STRICT. The judge watches + listens to the top clips; only a clip that really fits is used, else nothing is made.
+        import genre_judge
+        cands = sorted([m for m in pool if m.get("kind") != "live" and vid_id(m["url"]) not in USED and m["url"] not in EXCLUDE
+                        and not bad(m["title"] + " " + m.get("desc", "")) and m["views"] >= CFG["min_views"] / 3
+                        and (on_topic(m["title"]) or m.get("region") in ("TW", "KICK"))], key=lambda x: -score(x))
+        best = genre_judge.pick(cands, g)
+        if not best:
+            print(f"no clip truly fits genre '{g}' this run", file=sys.stderr); sys.exit(3)
+        best["source"] = "trend"; print(json.dumps(best)); return
 
     # Apply the same filters as before, across all regions.
     filtered = [m for m in pool

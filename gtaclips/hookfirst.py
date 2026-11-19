@@ -288,7 +288,7 @@ class Text:
 # ------------------------------------------------------------------------------------------------ plan
 def plan(dur, key, total=18.0, body_len=None):
     """Source windows for the 4 parts. total = target output length (12-20 s). body_len overrides (narrated body file)."""
-    total = max(12.0, min(20.0, float(total)))
+    total = max(12.0, min(float(os.environ.get("HF_MAX", "20")), float(total)))   # HF_MAX: longer Shorts keep the whole setup -> payoff
     key = min(max(0.0, key), dur)
     c0 = min(max(0.0, key - R_PRE), max(0.0, dur - COLD))     # same start as the replay: the impact is in frame 1
     cold = (round(c0, 3), round(min(dur, c0 + COLD), 3))

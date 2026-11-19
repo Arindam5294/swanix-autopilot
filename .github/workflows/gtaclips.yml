@@ -87,7 +87,7 @@ jobs:
         with: { ref: "${{ github.ref_name }}" }   # newest code + used.json, even when an old run is re-run
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-core && pip install -q -U --pre "yt-dlp[default]" bgutil-ytdlp-pot-provider edge-tts gtts pillow "opencv-python-headless<5" faster-whisper
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-core && pip install -q -U --pre "yt-dlp[default]" bgutil-ytdlp-pot-provider edge-tts gtts pillow "opencv-python-headless<5" faster-whisper && (pip install -q torch torchaudio --index-url https://download.pytorch.org/whl/cpu && pip install -q --no-deps demucs==4.1.0 && pip install -q dora-search julius openunmix einops lameenc soundfile pyyaml tqdm || echo "demucs install failed, voice_forward will skip")
       - uses: actions/setup-node@v4
         continue-on-error: true
         with: { node-version: "20" }
@@ -127,7 +127,8 @@ jobs:
       - name: Tell you when no clip qualified (so it never fails silently)
         if: steps.pick.outputs.clip == ''
         run: |
-          python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram('GTA VI Clips: no new viral clip passed the filters this run. Send the bot a link to force one.')" || true
+          if [ -n "$GTA_GENRE" ]; then python genre_judge.py --tell-no-fit || true; else
+          python -c "import sys; sys.path.insert(0,'../common'); from notify import telegram; telegram('GTA VI Clips: no new viral clip passed the filters this run. Send the bot a link to force one.')" || true; fi
       - name: Free disk + add 8 GB swap (stops GitHub killing the runner when RAM runs out, exit 143)
         if: steps.pick.outputs.clip != ''
         continue-on-error: true

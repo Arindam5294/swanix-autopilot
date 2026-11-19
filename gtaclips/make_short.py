@@ -376,10 +376,15 @@ def main_hookfirst(clip, s, src, kind, clean, moment):
             if vw > vh: box = layout.find_facecam(src)
         except Exception as e:
             print("layout: skipped:", e, file=sys.stderr)
-    key, why = hookfirst.pick_key(src, clip)
-    print(f"hook-first: key moment {key}s ({why})", file=sys.stderr)
+    try:   # fix 7: streamer voice up front (game/music down) + dead air trimmed so setup -> payoff stays tight
+        import tighten
+        src, key, why = tighten.prep(src, clip, WORK, CFG); htotal = tighten.total_for(src, CFG)
+    except Exception as e:
+        print("tighten: skipped:", str(e)[-300:], file=sys.stderr)
+        key, why = hookfirst.pick_key(src, clip); htotal = CFG.get("hookfirst_seconds", 18)
+    print(f"hook-first: key moment {key}s ({why}), {htotal:.1f}s Short", file=sys.stderr)
     info = hookfirst.render(src, WORK / "short.mp4", hook=s["hook"], cta=s["share_cta"], credit=hookfirst.credit_for(clip),
-                            key=key, cam=box, total=CFG.get("hookfirst_seconds", 18), work=WORK)
+                            key=key, cam=box, total=htotal, work=WORK)
     final, total = WORK / "short.mp4", info["seconds"]
     b0, b1 = info["timeline"]["body"]
     if CFG.get("streamer_captions", True) and hookfirst.has_audio(src):
