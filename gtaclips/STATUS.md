@@ -17,3 +17,4 @@ Every post, newest last.
 | 2026-11-19 10:25 | xQc's FIRST Grand Theft Auto in GTA 6 😭 #shorts |  | https://youtube.com/shorts/3qbW8fS7488 |
 | 2026-11-19 12:11 | IShowSpeed Loses It Over GTA 6 Surprise 😭 #shorts |  | https://youtube.com/shorts/hN2c5FHEGEA |
 | 2026-11-19 16:26 | AI Beats GTA 6 in 12 Hours & Finds 500+ Secrets 🤯 #shorts |  | https://youtube.com/shorts/dh0dHe1KAlg |
+| 2026-11-20 05:47 | MrBeast loses it during FIRST GTA 6 heist 😭 #shorts |  | https://youtube.com/shorts/juMOkUScaoM |
