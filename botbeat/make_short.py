@@ -246,9 +246,44 @@ def wrap(s, n=16):
         else: cur = (cur + " " + w).strip()
     return lines + [cur] if cur else lines
 
+FONT_DIR = HERE / "fonts"
+NEON_FONT = str(FONT_DIR / "Montserrat-BlackItalic.ttf")
+NEON_FONT2 = str(FONT_DIR / "Montserrat-ExtraBoldItalic.ttf")
+NEON = {"cyan": (0, 240, 255), "pink": (255, 46, 196), "yellow": (255, 230, 0), "white": (255, 255, 255)}
+
+def _font(path, size):
+    from PIL import ImageFont
+    try: return ImageFont.truetype(path, size)
+    except Exception: return ImageFont.truetype(FONT, size)
+
+_SPRITES = {}
+def neon_sprite(s, size, glow, path=None):
+    """Bold-italic text with a neon glow: blurred coloured halo + white-hot core + thin coloured edge. Cached."""
+    from PIL import Image, ImageDraw, ImageFilter
+    key = (s, size, glow, path)
+    if key in _SPRITES: return _SPRITES[key]
+    f = _font(path or NEON_FONT, size)
+    pad = size // 2 + 30
+    l, t, r, b = ImageDraw.Draw(Image.new("L", (1, 1))).textbbox((0, 0), s, font=f, stroke_width=size // 14)
+    w, h = r - l + pad * 2, b - t + pad * 2
+    org = (pad - l, pad - t)
+    col = NEON[glow]
+    halo = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(halo).text(org, s, font=f, fill=col + (255,), stroke_width=size // 9, stroke_fill=col + (255,))
+    halo_wide = halo.filter(ImageFilter.GaussianBlur(size / 4))
+    halo_tight = halo.filter(ImageFilter.GaussianBlur(size / 12))
+    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    shadow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(shadow).text((org[0] + 4, org[1] + 6), s, font=f, fill=(0, 0, 0, 200), stroke_width=size // 10, stroke_fill=(0, 0, 0, 200))
+    im.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(6)))
+    im.alpha_composite(halo_wide); im.alpha_composite(halo_wide); im.alpha_composite(halo_tight)
+    core = (255, 255, 255) if glow != "white" else (255, 255, 255)
+    ImageDraw.Draw(im).text(org, s, font=f, fill=core + (255,), stroke_width=max(2, size // 22), stroke_fill=col + (255,))
+    _SPRITES[key] = im
+    return im
+
 def overlay(words, hook, cta, total, credit):
-    from PIL import Image, ImageDraw, ImageFont
-    F = lambda s: ImageFont.truetype(FONT, s)
+    from PIL import Image
     chunks, cur = [], []
     for w in words:
         cur.append(w)
@@ -260,21 +295,31 @@ def overlay(words, hook, cta, total, credit):
         caps.append((t0, t1, " ".join(x["w"] for x in c).upper()))
     d_ = WORK / "ov"; shutil.rmtree(d_, ignore_errors=True); d_.mkdir()
     cache = {}
-    def txt(d, y, s, size, fill):
-        d.text((W//2, y), s, font=F(size), fill=fill, stroke_width=max(6, size//8), stroke_fill=(0, 0, 0), anchor="mm")
+    def put(im, y, s, size, glow, path=None, x=None, anchor="m"):
+        sp = neon_sprite(s, size, glow, path)
+        while sp.width > W - 20 and size > 30:
+            size -= 6; sp = neon_sprite(s, size, glow, path)
+        if anchor == "r": px = (x or W - 20) - sp.width
+        else: px = W // 2 - sp.width // 2
+        im.alpha_composite(sp, (max(0, px), int(y - sp.height / 2)))
+    from PIL import ImageDraw
+    credit_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ctext = "".join(ch for ch in credit if ord(ch) < 0x2000).strip() or credit
+    ImageDraw.Draw(credit_layer).text((W - 28, 1360), ctext, font=_font(NEON_FONT2, 30), fill=(255, 255, 255),
+                                      stroke_width=3, stroke_fill=(0, 0, 0), anchor="rm")
+    hl = wrap(hook.upper(), 14)[:3]
+    hsize, gap = (96, 118) if len(hl) <= 2 else (78, 96)
     for i in range(int(total * FPS)):
         t = i / FPS
-        im = Image.new("RGBA", (W, H), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
-        hl = wrap(hook, 14)[:3]
-        size, gap = (92, 115) if len(hl) <= 2 else (74, 92)
+        im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         for k, line in enumerate(hl):
-            txt(d, 170 + k*gap, line, size, (255, 214, 0) if k == len(hl) - 1 else (255, 255, 255))
+            put(im, 170 + k*gap, line, hsize, "pink" if k == len(hl) - 1 else "cyan")
         if t > total - 2.6:
-            for k, line in enumerate(wrap(cta, 16)[:2]): txt(d, 1500 + k*115, line, 84, (255, 214, 0))
+            for k, line in enumerate(wrap(cta.upper(), 19)[:2]): put(im, 1500 + k*115, line, 84, "yellow")
         else:
             for t0, t1, s in caps:
-                if t0 <= t < t1: txt(d, 1500, s, 78 if len(s) <= 18 else 62, (255, 255, 255))
-        d.text((W-30, 1360), credit, font=F(28), fill=(255, 255, 255), stroke_width=3, stroke_fill=(0, 0, 0), anchor="rm")
+                if t0 <= t < t1: put(im, 1500, s, 84 if len(s) <= 18 else 66, "cyan")
+        im.alpha_composite(credit_layer)
         key = hashlib.md5(im.tobytes()).hexdigest(); p = d_ / f"{i:05d}.png"
         if key in cache: os.link(cache[key], p)
         else: im.save(p, compress_level=1); cache[key] = p
