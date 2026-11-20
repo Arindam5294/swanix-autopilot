@@ -21,3 +21,4 @@ Nothing posts until it says yes. Copy faults get one automatic fix and a re-chec
 - 2026-11-19 07:36 NO  (1 check) 'GTA 5 FREE GUNS METHOD Before GTA 6 Launch 🎮 #shorts': Footage is GTA 5, not GTA 6; Title and description focus on GTA 5 content, not GTA 6
 - 2026-11-19 07:42 NO  (2 checks) 'Chief Plays GTA 6 Launch Day 😱 #shorts': Description claims 'GTA 6 running smoothly in a browser via cloud technology... No downloads, no console required' — frames only show gameplay, cannot verify cloud/browser delivery; misleading for a console-exclusive launch day
 - 2026-11-19 08:02 NO  (2 checks) 'Testing ALLEGED GTA 6 Cheat Codes on Launch Day (Fake?) #sho': Title mentions testing alleged cheat codes with a question mark (fake?), which promotes unverified/clickbait content.
+- 2026-11-20 07:52 NO  (1 check) 'GOOSEATRON reacts to GTA 6 ending 😭 #shorts': Contains story spoilers by claiming to show the GTA 6 ending.
