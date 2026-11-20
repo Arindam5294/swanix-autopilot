@@ -128,7 +128,11 @@ Return ONLY JSON with keys:
   "China humanoid robot", "Two AIs talking"), one emoji, ending with " #shorts #ai";
 "description": line 1 repeats the searchable subject in a plain sentence, then 1-2 sentences, then credit line "Clip: <uploader>",
   then "Follow @thebotbeat for a new robot or AI moment every day.", then 8 hashtags;
-"tags": list of 14 tags."""
+"tags": list of 14 tags.
+"ig_caption": Instagram Reels caption: line 1 = scroll-stopping hook (max 10 words, 1 emoji), blank line, 2 short lines with the
+  real facts, blank line, a question people can answer in one word in the comments, then "Follow for a new robot or AI moment every day 🤖",
+  then "Clip: <uploader>", blank line, then 15 hashtags in one line: 4 big (#robots #ai #technology #tech), 6 mid (#robotics #humanoidrobot
+  #artificialintelligence #futuretech #innovation #techreels), 5 niche about this exact clip (company, robot name, country, what it does)."""
     txt = ask(prompt + "\nAnswer with valid JSON only.", min_len=200)
     m = re.search(r"\{.*\}", txt, re.S)
     return json.loads(m.group(0))
@@ -149,7 +153,11 @@ Return ONLY JSON with keys:
 "cta": max 5 words ALL CAPS question shown at the end;
 "title": viral title under 70 characters about {clip['topic']} with one emoji, ending with " #shorts #trending";
 "description": 2-3 sentences + credit line "Clip: <uploader>" + 8 hashtags about the topic;
-"tags": list of 14 tags about the topic."""
+"tags": list of 14 tags about the topic.
+"ig_caption": Instagram Reels caption: line 1 = scroll-stopping hook (max 10 words, 1 emoji), blank line, 2 short lines with the
+  real facts, blank line, a question people can answer in one word in the comments, then "Follow for a new robot or AI moment every day 🤖",
+  then "Clip: <uploader>", blank line, then 15 hashtags in one line: 4 big (#robots #ai #technology #tech), 6 mid (#robotics #humanoidrobot
+  #artificialintelligence #futuretech #innovation #techreels), 5 niche about this exact clip (company, what it shows)."""
     txt = ask(prompt + "\nAnswer with valid JSON only.", min_len=200)
     s = json.loads(re.search(r"\{.*\}", txt, re.S).group(0))
     if re.search(r"\brobot|humanoid", s.get("vo", ""), re.I) and not re.search(r"robot|humanoid", clip["title"] + clip["desc"], re.I):

@@ -4,6 +4,23 @@ import json, os, pathlib, subprocess
 HERE = pathlib.Path(__file__).resolve().parent
 m = json.load(open(HERE / "out" / "metadata.json"))
 tok, chat = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
+
+def ig_caption(m):
+    """Instagram Reels caption: from the script if it wrote one, else built from title/description/tags."""
+    c = (m.get("ig_caption") or "").strip()
+    if len(c) > 40 and "#" in c: return c[:2150]
+    title = m["title"].replace("#shorts", "").replace("#ai", "").strip()
+    body = [l for l in m["description"].splitlines() if l.strip() and not l.strip().startswith("#") and "Follow @" not in l]
+    credit = next((l for l in body if l.startswith("Clip:")), "")
+    facts = " ".join(l for l in body if not l.startswith("Clip:"))[:220]
+    base = ["#robots", "#ai", "#technology", "#tech", "#robotics", "#humanoidrobot", "#artificialintelligence",
+            "#futuretech", "#innovation", "#techreels"]
+    niche = ["#" + "".join(ch for ch in x.lower() if ch.isalnum()) for x in m.get("tags", [])][:8]
+    tags = list(dict.fromkeys(base + [x for x in niche if len(x) > 2]))[:15]
+    return (f"{title}\n\n{facts}\n\n{m.get('cta','').capitalize()} 👇\nFollow for a new robot or AI moment every day 🤖\n"
+            f"{credit}\n\n" + " ".join(tags)).strip()
+
+IG_TEXT = "📸 INSTAGRAM CAPTION (copy-paste):\n\n" + ig_caption(m)
 text = (f"🎬 New Botbeat Short ready ({m['seconds']} s)\n\nTITLE:\n{m['title']}\n\nDESCRIPTION:\n{m['description']}\n\n"
         f"TAGS:\n{', '.join(m['tags'])}\n\nSource: {m['source_url']}\n"
         "Upload: YouTube app → + → Short → pick this video. Not made for kids. Altered content: No (real footage, AI voice).")
@@ -22,12 +39,19 @@ elif upnotes:
 if tok and chat and link_f.exists():
     subprocess.run(["curl", "-s", "--data-urlencode", f"text={text}", "-d", f"chat_id={chat}",
                     f"https://api.telegram.org/bot{tok}/sendMessage"], check=True, capture_output=True)
+    subprocess.run(["curl", "-s", "-F", f"chat_id={chat}", "-F", f"video=@{HERE/'out'/'short.mp4'}", "-F", "supports_streaming=true",
+                    "-F", "caption=For Instagram Reels 👇", f"https://api.telegram.org/bot{tok}/sendVideo"], capture_output=True)
+    subprocess.run(["curl", "-s", "--data-urlencode", f"text={IG_TEXT}", "-d", f"chat_id={chat}",
+                    f"https://api.telegram.org/bot{tok}/sendMessage"], capture_output=True)
 elif tok and chat:
     subprocess.run(["curl", "-s", "-F", f"chat_id={chat}", "-F", f"video=@{HERE/'out'/'short.mp4'}", "-F", "supports_streaming=true",
                     f"https://api.telegram.org/bot{tok}/sendVideo"], check=True, capture_output=True)
     subprocess.run(["curl", "-s", "--data-urlencode", f"text={text}", "-d", f"chat_id={chat}",
                     f"https://api.telegram.org/bot{tok}/sendMessage"], check=True, capture_output=True)
+    subprocess.run(["curl", "-s", "--data-urlencode", f"text={IG_TEXT}", "-d", f"chat_id={chat}",
+                    f"https://api.telegram.org/bot{tok}/sendMessage"], capture_output=True)
 else:
     (HERE / "out" / "upload_me.txt").write_text(text)
 # (the clip was already marked used by mark_used.py before uploading)
 print(text)
+print("\n" + IG_TEXT)
