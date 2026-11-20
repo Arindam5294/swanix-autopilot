@@ -21,3 +21,4 @@ Every post, newest last.
 | 2026-11-20 06:17 | Typical Gamer's FIRST GTA 6 Free Roam Goes WRONG 😭 #shorts |  | https://youtube.com/shorts/TvjRPPcfNWY |
 | 2026-11-20 06:45 | Ludwig loses it in GTA 6 😭 #shorts |  | https://youtube.com/shorts/fNtBbL1K53Q |
 | 2026-11-20 11:31 | This GTA 6 moment is HEARTBREAKING 💔 #shorts |  | https://youtube.com/shorts/kFvpIR5OZjI |
+| 2026-11-20 22:04 | CarryMinati loses it playing GTA 6 😭 #shorts |  | https://youtube.com/shorts/NdVlVhr2IoU |
