@@ -1,7 +1,7 @@
 {
  "firstHeight": 969349,
- "lastHeight": 976706,
- "blocksIndexed": 7358,
+ "lastHeight": 976707,
+ "blocksIndexed": 7359,
  "timeline": [
   {
    "from": 969349,
@@ -1079,10 +1079,6 @@
  "spentPct": 76.7,
  "rootHistory": [
   {
-   "h": 976606,
-   "leaves": 13920
-  },
-  {
    "h": 976607,
    "leaves": 13920
   },
@@ -1480,6 +1476,10 @@
   },
   {
    "h": 976706,
+   "leaves": 13929
+  },
+  {
+   "h": 976707,
    "leaves": 13929
   }
  ],
@@ -2148,7 +2148,7 @@
  "soldOrClaimedNfSpent": 5998,
  "soldOrClaimedTotal": 5998,
  "activeNfAlreadySpent": 81,
- "btcTipHeight": 976706,
+ "btcTipHeight": 976707,
  "indexerLagBlocks": 0,
  "anonymitySet": 3246,
  "noteKinds": {
@@ -2159,8 +2159,8 @@
   "reward": 4070
  },
  "activeListingAgeBuckets": {
-  "<1 day": 13,
-  "1-7 days": 9,
+  "<1 day": 12,
+  "1-7 days": 10,
   "7-30 days": 41,
   ">30 days": 18
  },
@@ -2169,53 +2169,41 @@
   {
    "assetId": 2914,
    "height": 969649,
-   "ageBlocks": 7057,
+   "ageBlocks": 7058,
    "lockTxid": "789fe1147b57db99b7e10183e37c591b00eeddf266eb983475ab42417a764687",
    "lockValue": 330
   },
   {
    "assetId": 3106,
    "height": 970316,
-   "ageBlocks": 6390,
+   "ageBlocks": 6391,
    "lockTxid": "0c3584c38489e0c7f79684748ab304f5aa05498cd67115da06ef31128d3e030d",
    "lockValue": 330
   },
   {
    "assetId": 577,
    "height": 970614,
-   "ageBlocks": 6092,
+   "ageBlocks": 6093,
    "lockTxid": "28518afc197e70a1786bee01871d8bdbc0eb575acd1e3682258e9cedf0794976",
    "lockValue": 330
   },
   {
    "assetId": 2241,
    "height": 970636,
-   "ageBlocks": 6070,
+   "ageBlocks": 6071,
    "lockTxid": "d13d4a3681006e7a680c057d672c1120379a881e4b18739a5ebbff90f51bcda3",
    "lockValue": 330
   },
   {
    "assetId": 868,
    "height": 970672,
-   "ageBlocks": 6034,
+   "ageBlocks": 6035,
    "lockTxid": "7a9bee9da9f439dc2310b3065e6a03fbd4a4842c6955851f83334ddb4bb2b2ca",
    "lockValue": 330
   }
  ],
- "medianActiveAgeBlocks": 1744,
+ "medianActiveAgeBlocks": 1745,
  "history": [
-  {
-   "time": "2026-11-17 03:45 UTC",
-   "height": 976215,
-   "notes": 13763,
-   "nullifiers": 10576,
-   "passed": 9,
-   "total": 9,
-   "sha256": "f63f22cedd55b8be4d870c0cf4f6c8817fc795ea84ed7dfa583717c0080c5afb",
-   "anomalies": [],
-   "anonymitySet": 3187,
-   "lag": 0
-  },
   {
    "time": "2026-11-17 04:00 UTC",
    "height": 976219,
@@ -5083,6 +5071,18 @@
    "anomalies": [],
    "anonymitySet": 3246,
    "lag": 0
+  },
+  {
+   "time": "2026-11-20 08:15 UTC",
+   "height": 976707,
+   "notes": 13929,
+   "nullifiers": 10683,
+   "passed": 9,
+   "total": 9,
+   "sha256": "713a1ef00c257d1d91736ec974ebb03d73aebf28a2877324ce093d19c3b916f4",
+   "anomalies": [],
+   "anonymitySet": 3246,
+   "lag": 0
   }
  ],
  "passStreak": 240,
@@ -5097,9 +5097,9 @@
   "soldHaveTxid": true,
   "claimedHaveTxid": true
  },
- "reportSha256": "709bc1cfbbdd982daffb89a7156117af8fb23ded4736f711ca92027d0f3ae5ae",
+ "reportSha256": "713a1ef00c257d1d91736ec974ebb03d73aebf28a2877324ce093d19c3b916f4",
  "reportCore": {
-  "lastHeight": 976706,
+  "lastHeight": 976707,
   "notes": 13929,
   "nullifiers": 10683,
   "latestRoot": "3826878586578314165438694909000869434352689824718712915142553575362628451331",
@@ -5129,10 +5129,10 @@
    "claimedHaveTxid": true
   }
  },
- "generatedAt": "2026-11-20 08:00 UTC",
+ "generatedAt": "2026-11-20 08:15 UTC",
  "anomalyLog": [],
  "pieceIndex": {
-  "asOf": 976706,
+  "asOf": 976707,
   "cols": [
    "mintedCount",
    "activeListings",
@@ -5148,10 +5148,10 @@
   "algorithm": "Ed25519",
   "publicKey": "9d474a1e0e9def90ea4ce04d35eb3ad5ff3263735eb22fe37bd63451849dbedb",
   "signedMessage": "reportSha256 (UTF-8 hex string)",
-  "signature": "0e36e7eef6492781cc455ac30f6b51988db552e9d49f03317d36e26d460dd8bd2a1bf7e6d5980662b67fab84c40a9c1abed2cba920ece9a66642a40943dd4f0b",
-  "reportHeight": 976706,
+  "signature": "fac1f19178f8e3f2cee4b09ea47fa1d91922cd1f746a0ccdebd9bcd77571493036a250fcf66703b1685dbbbaf7beb8393e671f5c34c4d9e89a6a6a796fae8e01",
+  "reportHeight": 976707,
   "otsPending": true,
-  "otsLatestBase64": "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEIcJvBz7vdmC2v+4mnFWEXr4+yPe1HNvcRypICfQ865a7wEDwgqA7fD56JrfSUs0ZAfNwI//AIHk9XWzBQZN0I8BDWJlJDgwDdWxeLYwdYxO8tCPAg/lP8mrljgN7BBfLKnW2ZCB/tgzAykqQtvbBwyQazxdkI8CBOehQB4iO6r/o+W9K2BVNHIsFVaGwr6uMr9YgP63lRsAjxBGr/+pzwCPD+wMWWxs6uAIPf4w0u+QyOLCtodHRwczovL2JvYi5idGMuY2FsZW5kYXIub3BlbnRpbWVzdGFtcHMub3Jn//AIJ6x22lrUgZ4I8BBCJh+5PgABYJkP5AVGLdObCPAgSYJl1UxjXqKzH0kKbMYJci+85HJ7auzffjB9HYW//+EI8SCX42P+8sxPJo+9TEiIsrt33dpodJlG+Kmabr0N2hLgEwjxBGr/+pvwCA9kIj+Ex6MgAIPf4w0u+QyOLi1odHRwczovL2FsaWNlLmJ0Yy5jYWxlbmRhci5vcGVudGltZXN0YW1wcy5vcmf/8BB1mTa9LJYZEK7/5f7cxe+BCPEgdiDmSUX3eSh7qwjrnObyqD+5TRZaO+1lJtIjCWLT/b4I8QRq//qb8AhN38Weo8PyBACD3+MNLvkMjiMiaHR0cHM6Ly9idGMuY2FsZW5kYXIuY2F0YWxsYXh5LmNvbfAQ2JAzGhJhMwXtE42rr3ACRAjxIIG8UgqXgmuQ5Y7//9rUg5C4ABICI6935VqcWZm5fVg8CPAgcyu102FDObRHYdLWX01RGDHgFT9Dg5dZ42KNdZ5sj7gI8CA5tewHkobuClQnB22zX2ehDSNypDKdZLdpI8hwxR3JLQjxBGr/+pzwCMSdeJapaus9AIPf4w0u+QyOKShodHRwczovL2Zpbm5leS5jYWxlbmRhci5ldGVybml0eXdhbGwuY29t",
+  "otsLatestBase64": "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEIcToe8AwlfR2Rc27JdOuwPXOuvyiih3Mkzgk9GcO5FvTwEBRhpROJp71tKN1VI7ykzUYI//AIB4lslU76Y2MI8BCeSm/GVkqIzLWaGX5n6roCCPEgPkJFk3Nv5SXNadyth6Y+oqNJ9zQIM9M2/OWfPudKkD0I8CD0vzAS8x61DZr5sCVVIDqjVjkO92W+o0moQtPhpGJq6QjwIEvhQBkxaa15ZNkBVbDj0aYlSoYBODmowbc2fCAVdMtiCPEEawABpvAIAKWViOwrXqoAg9/jDS75DI4sK2h0dHBzOi8vYm9iLmJ0Yy5jYWxlbmRhci5vcGVudGltZXN0YW1wcy5vcmf/8AgVIZtN0nQDRQjwEOf+Dx9SomGre6GeyDkIO4oI8SB8TXyet6xIZYBYGK1HGAzwm7OR3Ok9GoACaApLAmbWRgjwIM5RJI+F17dWIfVxYLWhXxaHofs0L9ygMMMIxJ4+5YAqCPEgFEEdaOhernsTHmq6wHBSJSzHLVUOvuRjrPlIgmodprEI8QRrAAGl8Ai25EBN1YD/1wCD3+MNLvkMji4taHR0cHM6Ly9hbGljZS5idGMuY2FsZW5kYXIub3BlbnRpbWVzdGFtcHMub3Jn//AQvFcqTMHyu7oLdhERsBSq4wjxIO9m9st/VLN+tR8fikeJV0rgwDV0xzd1Pqu8KTBmReW6CPAgeKEENxcJ8e3xf2ftpwm35EvU+LtApHeQE/AxFvYvMPYI8QRrAAGl8AhHcvPxFoyKvQCD3+MNLvkMjiMiaHR0cHM6Ly9idGMuY2FsZW5kYXIuY2F0YWxsYXh5LmNvbfAQ6k+Q25FQULsZvHj4zIJFbQjxIJecJpmionagfp2f67oulKpIxaaXaRbY58JT9D/IzLw4CPEgwoc1hl25lb34l1rqUMLeaKrUix/PaGAiOX0YTKO/VXgI8CBcAwJFSYYyYQvLRPg5WjOcbm/F5JS1DY3KdCtZdl074wjxBGsAAabwCPxROoySq9oXAIPf4w0u+QyOKShodHRwczovL2Zpbm5leS5jYWxlbmRhci5ldGVybml0eXdhbGwuY29t",
   "confirmed": {
    "reportHeight": 976699,
    "bitcoinBlock": 976701,
