@@ -366,6 +366,32 @@ def send_x(path, s, clip):
     subprocess.run(["curl", "-s", "-F", f"chat_id={chat}", "-F", f"caption={text}", "-F", f"video=@{path}",
                     f"https://api.telegram.org/bot{tok}/sendVideo"], capture_output=True, timeout=180)
 
+def main_narrated(clip, s, src, kind):
+    """Stream moment as a NARRATED Short: the AI voiceover script (s["vo"]) spoken over the clip's gameplay, facecam/chat/subtitles
+    cropped out, streamer audio muted, caption card per sentence. Transformed content, so IG/YT don't flag it as a reupload."""
+    import narrate
+    box = None
+    try:
+        vw, vh = map(int, sh("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", str(src)).strip().split(",")[:2])
+        if vw > vh: box = layout.find_facecam(src)
+    except Exception as e:
+        print("layout: skipped:", e, file=sys.stderr)
+    lang = "hi" if HINDI else "en"
+    lines = narrate.vo_lines(s["vo"], s.get("hook", ""), lang)
+    if lines: lines[0].update({"label": "GTA 6", "big": s.get("hook", "") or lines[0]["big"]})
+    info = narrate.render(src, lines, WORK / "short.mp4", WORK / "narr", lang=lang, rate=CFG.get("narrate_rate", "+22%"),
+                          pill="GTA 6", credit=f"clip: {clip.get('uploader') or 'streamer'}", cam=box,
+                          start=0.0, game_db=CFG.get("narrate_game_db"), max_seconds=CFG.get("max_seconds", 32) - 0.5)
+    shutil.copy(WORK / "short.mp4", OUT / "short.mp4")
+    must = (campaign.match(" ".join(str(clip.get(k, "")) for k in ("uploader", "title", "url"))) or {}).get("must_include", "")
+    s.update({"clean": False, "mode": clip.get("mode", "ai"), "topic": clip.get("topic", ""), "source_url": clip["url"], "kind": kind,
+              "moment": clip.get("moment", ""), "moment_at": clip.get("moment_at", ""), "source_views": clip.get("views", 0),
+              "uploader": clip.get("uploader", ""), "lang": lang, "must_include": must, "seconds": round(info["seconds"], 1),
+              "layout": info["layout"], "structure": "narrated", "voiceover": True, "voice": info["voice"]})
+    json.dump(s, open(OUT / "metadata.json", "w"), indent=1)
+    print("made", OUT / "short.mp4", round(info["seconds"], 1), "s (narrated)")
+
+
 def main_hookfirst(clip, s, src, kind, clean, moment):
     """Real-audio clip, hook-first structure (hookfirst.py): cold open -> facecam body + credit -> 0.5x REPLAY -> share end card.
     Streamer captions are burned on the body only. Same out/short.mp4, out/short_x.mp4 and out/metadata.json as before."""
@@ -456,6 +482,13 @@ def main():
     if share:
         s["share_cta"] = share
         s["description"] = s.get("description", "").rstrip() + "\n\n" + hookfirst.cta_sentence(share)
+    if moment and not clean and CFG.get("narrate_moments", True):
+        import narrate
+        if narrate.enabled(CFG):
+            try:
+                return main_narrated(clip, s, src, kind)
+            except Exception as e:   # never lose a run: fall back to the hook-first / classic render
+                print("narrated render failed, using the old render:", str(e)[-600:], file=sys.stderr)
     if clean or hf_real:
         sh("ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", "0.3", "-q:a", "9", str(WORK / "vo.mp3"))
         words = []

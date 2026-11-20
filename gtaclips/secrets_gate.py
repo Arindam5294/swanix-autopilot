@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gauntlet for GTA 6 SECRETS Shorts: runs gate.py unchanged (hard checks + fresh AI reviewer, verdict log in RULES.md)
 with secrets rules on top:
-1) length 12-25 s (the series format), 1080x1920.
+1) length 12-32 s (the series format), 1080x1920.
 2) tip: out/tip_check.json (written by gta_secrets.py) must say the tip's supporting quote was found verbatim in the guide.
 3) footage: metadata visual_safety must start with "checked" (Gemini vision: shows the tip + safe), speech check must not be unavailable-and-flagged.
 Exit 0 = post it, exit 7 = rejected (same as gate.py). Usage: python secrets_gate.py [video] [metadata.json]"""
@@ -37,6 +37,8 @@ gate.hard_checks = hard_checks
 gate.BRIEF = gate.BRIEF.replace("Look at the frames", "This is a 'GTA 6 SECRETS · PART N' tip Short: one streamer clip (webcam on top is fine), "
     "a hook-first cold open, a yellow series banner, WHERE / WHAT YOU GET captions, a 0.5x REPLAY of the payoff and a darkened "
     "'SEND THIS TO ... / FOLLOW FOR PART N+1' end card (all intended). "
+    "OR the NARRATED version: an AI voiceover (often Hindi) explains the tip over gameplay (webcam cropped out, streamer audio muted), "
+    "with big caption cards like STEP 1 / REWARD / FOLLOW FOR and the yellow PART pill on top - also intended and fine. "
     "A guide tip about a place, vehicle, weapon or money spot is NOT an exploit. Bikinis, lingerie and thongs are fine. "
     "Say NO if any frame shows full nudity (bare genitals, bare breasts, naked NPCs), a stream sub/donation alert overlay, or a slur on screen. Look at the frames", 1)
 if __name__ == "__main__":

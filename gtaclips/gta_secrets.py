@@ -569,11 +569,33 @@ def render_hookfirst(clip, tip, part, dst):
             "layout": info["layout"], "structure": "hookfirst", "key_at": key, "key_why": why, "share_cta": cta}
 
 
+def render_narrated(clip, tip, part, dst):
+    """Narrated Secrets: the verified tip spoken by an AI voice (Hindi by default) over the clip's gameplay. Facecam, chat and
+    subtitles cropped out, streamer audio muted, one caption card per line, PART pill, small clip credit."""
+    import narrate
+    lang = os.environ.get("GTA_NARRATE_LANG") or C("narrate_lang", "hi")
+    lines, lang = narrate.secret_lines(tip, part, lang, gemini if os.environ.get("GEMINI_API_KEY") and not NO_LLM else None)
+    credit = f"clip: {clip.get('credit') or clip.get('uploader') or 'streamer'}"
+    start = max(0.0, float(clip.get("payoff", 0)) - 4.0)
+    info = narrate.render(clip["path"], lines, dst, WORK / "narr", lang=lang, rate=C("narrate_rate", "+22%"),
+                          pill=f"GTA 6 SECRETS · PART {part}", credit=credit, cam=clip.get("cam"), start=start,
+                          game_db=C("narrate_game_db", None), max_seconds=C("secrets_max_seconds", 32) - 0.6)
+    (WORK / "narration.json").write_text(json.dumps(lines, ensure_ascii=False, indent=1))
+    return {"start": start, "end": start + info["seconds"], "seconds": info["seconds"], "payoff_at": 0.0, "layout": info["layout"],
+            "structure": "narrated", "voiceover": True, "voice": info["voice"], "narration": [l["say"] for l in lines]}
+
+
 def render(clip, tip, part, dst):
     WORK.mkdir(parents=True, exist_ok=True)
     import listicle, hookfirst
     listicle.FONT_DIR, listicle.FONT_FILE = FONT_DIR, FONT_FILE
     listicle.ensure_font()
+    import narrate
+    if narrate.enabled(CFG):   # AI voiceover over clean gameplay (transformed = original content); "narrate": false / GTA_NARRATE=0 = off
+        try:
+            return render_narrated(clip, tip, part, dst)
+        except Exception as e:
+            log("narrated render failed, using the hook-first edit:", str(e)[-400:])
     if hookfirst.enabled(CFG):   # shared hook-first edit (config/gta_secrets.json "hookfirst": false or GTA_HOOKFIRST=0 = old render)
         return render_hookfirst(clip, tip, part, dst)
     path = clip["path"]; dur = clip.get("dur") or duration(path)
