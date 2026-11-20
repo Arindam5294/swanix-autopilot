@@ -19,3 +19,4 @@ Every post, newest last.
 | 2026-11-19 16:26 | AI Beats GTA 6 in 12 Hours & Finds 500+ Secrets 🤯 #shorts |  | https://youtube.com/shorts/dh0dHe1KAlg |
 | 2026-11-20 05:47 | MrBeast loses it during FIRST GTA 6 heist 😭 #shorts |  | https://youtube.com/shorts/juMOkUScaoM |
 | 2026-11-20 06:17 | Typical Gamer's FIRST GTA 6 Free Roam Goes WRONG 😭 #shorts |  | https://youtube.com/shorts/TvjRPPcfNWY |
+| 2026-11-20 06:45 | Ludwig loses it in GTA 6 😭 #shorts |  | https://youtube.com/shorts/fNtBbL1K53Q |
