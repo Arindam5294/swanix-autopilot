@@ -118,11 +118,16 @@ Source description: {clip['desc'][:1200]}
 Uploader: {clip.get('uploader','')}  Views: {clip.get('views',0)}
 Rules: only facts stated in the title/description (never invent numbers), no slang, no crypto, no hype words like 'insane'.
 Return ONLY JSON with keys:
-"hook": top-of-screen hook, max 5 words, ALL CAPS, curiosity gap;
-"vo": voiceover, 50-65 words, first sentence is the hook spoken, one surprising fact in the middle, ends with a short question to the viewer;
-"cta": max 5 words ALL CAPS question shown at the end, e.g. "WOULD YOU TRUST IT?";
-"title": viral title under 70 characters with one emoji, ending with " #shorts #ai";
-"description": 2-3 sentences + credit line "Clip: <uploader>" + 8 hashtags;
+"hook": top-of-screen hook, max 5 words, ALL CAPS, a specific claim about what is on screen in the first second
+  (like "CHINA'S ROBOTS JUST RACED" or "THIS ROBOT REFUSED ORDERS"), never generic ("YOU WON'T BELIEVE", "WATCH THIS");
+"vo": voiceover, 45-55 words, confident and fast. Sentence 1 (max 8 words) names the most surprising thing on screen right now,
+  no intro, never "In this video" or "Have you ever". Then 2-3 short sentences of facts with one surprising detail.
+  Last sentence is a short question that links back to sentence 1 so the Short loops cleanly;
+"cta": max 5 words ALL CAPS question shown at the end that is easy to answer in a comment, e.g. "WOULD YOU BUY ONE?";
+"title": under 60 characters, starts with the searchable subject people type (robot/company/model name, e.g. "Unitree H2 robot",
+  "China humanoid robot", "Two AIs talking"), one emoji, ending with " #shorts #ai";
+"description": line 1 repeats the searchable subject in a plain sentence, then 1-2 sentences, then credit line "Clip: <uploader>",
+  then "Follow @thebotbeat for a new robot or AI moment every day.", then 8 hashtags;
 "tags": list of 14 tags."""
     txt = ask(prompt + "\nAnswer with valid JSON only.", min_len=200)
     m = re.search(r"\{.*\}", txt, re.S)
@@ -140,7 +145,7 @@ title/description is about them. Only facts stated in the title/description (nev
 no slang, no crypto, no hype words.
 Return ONLY JSON with keys:
 "hook": top-of-screen hook, max 5 words, ALL CAPS, about {clip['topic']};
-"vo": voiceover, 50-65 words, first sentence is the hook spoken, ends with a short question to the viewer;
+"vo": voiceover, 45-55 words, sentence 1 (max 8 words) names the most surprising thing on screen, no intro, ends with a short question that links back to sentence 1;
 "cta": max 5 words ALL CAPS question shown at the end;
 "title": viral title under 70 characters about {clip['topic']} with one emoji, ending with " #shorts #trending";
 "description": 2-3 sentences + credit line "Clip: <uploader>" + 8 hashtags about the topic;

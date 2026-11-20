@@ -1,7 +1,7 @@
 name: Botbeat Shorts (made and uploaded to YouTube)
 on:
   schedule:
-    - cron: "43 12,17 * * *"    # 6:13 PM and 11:13 PM IST (heatmap peak 6 PM-2 AM IST)
+    - cron: "45 1,12,17 * * *"  # 7:15 AM IST (US 8:45 PM ET), 6:15 PM IST, 11:15 PM IST (US lunch)
   workflow_dispatch:
     inputs:
       url:
