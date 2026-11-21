@@ -25,3 +25,4 @@ Nothing posts until it says yes. Copy faults get one automatic fix and a re-chec
 - 2026-11-21 08:57 NO  (1 check) 'xQc loses it in GTA 6 😭 #shorts': length 5s is outside 8-60s
 - 2026-11-21 19:51 NO  (1 check) 'IShowSpeed LOSES IT playing GTA 6 😱 #shorts': length 7s is outside 8-60s
 - 2026-11-21 20:50 NO  (1 check) 'Jynxzi loses his mind in GTA 6 😭 #shorts': length 7s is outside 8-60s
+- 2026-11-21 22:05 NO  (1 check) 'HasanAbi HAS AN INSANE GTA 6 MOMENT 😭 #shorts': length 8s is outside 8-60s
