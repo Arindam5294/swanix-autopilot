@@ -23,3 +23,4 @@ Nothing posts until it says yes. Copy faults get one automatic fix and a re-chec
 - 2026-11-19 08:02 NO  (2 checks) 'Testing ALLEGED GTA 6 Cheat Codes on Launch Day (Fake?) #sho': Title mentions testing alleged cheat codes with a question mark (fake?), which promotes unverified/clickbait content.
 - 2026-11-20 07:52 NO  (1 check) 'GOOSEATRON reacts to GTA 6 ending 😭 #shorts': Contains story spoilers by claiming to show the GTA 6 ending.
 - 2026-11-21 08:57 NO  (1 check) 'xQc loses it in GTA 6 😭 #shorts': length 5s is outside 8-60s
+- 2026-11-21 19:51 NO  (1 check) 'IShowSpeed LOSES IT playing GTA 6 😱 #shorts': length 7s is outside 8-60s
