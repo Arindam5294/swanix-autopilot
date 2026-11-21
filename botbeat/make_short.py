@@ -262,7 +262,7 @@ def wrap(s, n=16):
 FONT_DIR = HERE / "fonts"
 NEON_FONT = str(FONT_DIR / "Montserrat-BlackItalic.ttf")
 NEON_FONT2 = str(FONT_DIR / "Montserrat-ExtraBoldItalic.ttf")
-NEON = {"cyan": (0, 240, 255), "pink": (255, 46, 196), "yellow": (255, 230, 0), "white": (255, 255, 255)}
+NEON = {"cyan": (30, 110, 255), "pink": (230, 35, 45), "yellow": (230, 35, 45), "white": (30, 110, 255)}
 
 def _font(path, size):
     from PIL import ImageFont
@@ -271,27 +271,38 @@ def _font(path, size):
 
 _SPRITES = {}
 def neon_sprite(s, size, glow, path=None):
-    """Bold-italic text with a neon glow: blurred coloured halo + white-hot core + thin coloured edge. Cached."""
+    """Bold-italic text with a white-to-tint gradient fill, thin dark outline and a solid 3D extruded shadow (blue or red). Cached."""
     from PIL import Image, ImageDraw, ImageFilter
     key = (s, size, glow, path)
     if key in _SPRITES: return _SPRITES[key]
     f = _font(path or NEON_FONT, size)
-    pad = size // 2 + 30
-    l, t, r, b = ImageDraw.Draw(Image.new("L", (1, 1))).textbbox((0, 0), s, font=f, stroke_width=size // 14)
+    sw = max(2, size // 26)
+    depth = max(5, size // 11)
+    pad = sw * 2 + depth + 16
+    l, t, r, b = ImageDraw.Draw(Image.new("L", (1, 1))).textbbox((0, 0), s, font=f, stroke_width=sw)
     w, h = r - l + pad * 2, b - t + pad * 2
-    org = (pad - l, pad - t)
+    org = (pad - l - depth // 2, pad - t - depth // 2)
     col = NEON[glow]
-    halo = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    ImageDraw.Draw(halo).text(org, s, font=f, fill=col + (255,), stroke_width=size // 9, stroke_fill=col + (255,))
-    halo_wide = halo.filter(ImageFilter.GaussianBlur(size / 4))
-    halo_tight = halo.filter(ImageFilter.GaussianBlur(size / 12))
     im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    shadow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    ImageDraw.Draw(shadow).text((org[0] + 4, org[1] + 6), s, font=f, fill=(0, 0, 0, 200), stroke_width=size // 10, stroke_fill=(0, 0, 0, 200))
-    im.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(6)))
-    im.alpha_composite(halo_wide); im.alpha_composite(halo_wide); im.alpha_composite(halo_tight)
-    core = (255, 255, 255) if glow != "white" else (255, 255, 255)
-    ImageDraw.Draw(im).text(org, s, font=f, fill=core + (255,), stroke_width=max(2, size // 22), stroke_fill=col + (255,))
+    sh = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(sh).text((org[0] + depth + 3, org[1] + depth + 5), s, font=f, fill=(0, 0, 0, 120), stroke_width=sw, stroke_fill=(0, 0, 0, 120))
+    im.alpha_composite(sh.filter(ImageFilter.GaussianBlur(4)))
+    d = ImageDraw.Draw(im)
+    for k in range(depth, 0, -1):
+        c = tuple(int(x * (0.55 + 0.35 * (1 - k / depth))) for x in col)
+        d.text((org[0] + k, org[1] + k), s, font=f, fill=c + (255,), stroke_width=sw, stroke_fill=c + (255,))
+    d.text(org, s, font=f, fill=(15, 15, 22, 255), stroke_width=sw, stroke_fill=(15, 15, 22, 255))
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).text(org, s, font=f, fill=255)
+    tint = tuple(int(255 - (255 - x) * 0.55) for x in col)
+    y0, y1 = org[1] + t, org[1] + b
+    grad = Image.new("RGBA", (w, h))
+    gd = ImageDraw.Draw(grad)
+    for y in range(h):
+        k = min(1, max(0, (y - y0) / max(1, y1 - y0)))
+        k = max(0, (k - 0.35) / 0.65)
+        gd.line([(0, y), (w, y)], fill=tuple(int(255 + (tc - 255) * k) for tc in tint) + (255,))
+    im.paste(grad, (0, 0), mask)
     _SPRITES[key] = im
     return im
 
