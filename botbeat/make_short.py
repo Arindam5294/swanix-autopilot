@@ -112,27 +112,43 @@ def check_script(s):
 def script(clip):
     if clip.get("mode") == "general":
         return script_general(clip)
-    prompt = f"""You write YouTube Shorts for Botbeat, an English AI/robot news channel with calm, professional narration.
+    prompt = f"""You are the head writer of Botbeat, a GLOBAL English AI + robotics Shorts channel (viewers mostly in India, the US,
+the UK and worldwide). You write like the best Shorts creators: every second earns the next one.
 Source clip title: {clip['title']}
 Source description: {clip['desc'][:1200]}
 Uploader: {clip.get('uploader','')}  Views: {clip.get('views',0)}
-Rules: only facts stated in the title/description (never invent numbers), no slang, no crypto, no hype words like 'insane'.
+HARD RULES: only facts stated in the title/description (never invent numbers, prices, dates or quotes); no slang, no crypto,
+no hype words ('insane', 'crazy', 'mind-blowing', 'game changer'); name a country only when the title/description states it and it
+matters to the story (never lead with a country, lead with WHAT happens).
+
+HOOK PLAYBOOK (0-2 s decides everything):
+1. Write 3 different hooks using 3 different formulas from this list, then pick the strongest:
+   - Stakes / consequence: what this means for jobs, homes, money, safety ("THIS ROBOT JUST TOOK A WAREHOUSE SHIFT")
+   - First-ever / record: only if the source says it ("FIRST ROBOT TO ...")
+   - Contrast / surprise: expectation vs reality ("IT LOOKS HUMAN. IT ISN'T.")
+   - Specific number from the source ("10 HOURS. NO BREAKS.")
+   - Open question the clip answers ("CAN AI PASS A JOB INTERVIEW?")
+   The hook must describe what is ON SCREEN in the first second, max 6 words, ALL CAPS, never generic ("YOU WON'T BELIEVE", "WATCH THIS", "WAIT FOR IT").
+2. Voiceover structure (45-55 words, spoken fast, short sentences):
+   - Line 1 (max 8 words): restate the hook as a spoken punch, present tense, no intro, never "In this video", "Have you ever", "Meet".
+   - Line 2: who made it and what it does, plainly (company / lab / product name from the source).
+   - Open loop: tease the most surprising fact ("But the strangest part is...") and pay it off within the next sentence.
+   - Why it matters to a normal viewer in one sentence (their job, home, phone, safety, price) only if supported by the source.
+   - Last line: a short question that connects back to line 1 so the Short loops.
+3. CTA on screen at the end: max 5 words, ALL CAPS, a one-word-answer question ("WOULD YOU TRUST IT?").
+
 Return ONLY JSON with keys:
-"hook": top-of-screen hook, max 5 words, ALL CAPS, a specific claim about what is on screen in the first second
-  (like "CHINA'S ROBOTS JUST RACED" or "THIS ROBOT REFUSED ORDERS"), never generic ("YOU WON'T BELIEVE", "WATCH THIS");
-"vo": voiceover, 45-55 words, confident and fast. Sentence 1 (max 8 words) names the most surprising thing on screen right now,
-  no intro, never "In this video" or "Have you ever". Then 2-3 short sentences of facts with one surprising detail.
-  Last sentence is a short question that links back to sentence 1 so the Short loops cleanly;
-"cta": max 5 words ALL CAPS question shown at the end that is easy to answer in a comment, e.g. "WOULD YOU BUY ONE?";
-"title": under 60 characters, starts with the searchable subject people type (robot/company/model name, e.g. "Unitree H2 robot",
-  "China humanoid robot", "Two AIs talking"), one emoji, ending with " #shorts #ai";
+"hook_options": the 3 hooks you wrote; "hook": the strongest one;
+"vo": the voiceover; "cta": the CTA;
+"title": under 60 characters: front-load the searchable subject (company / robot / model name people type), then the curiosity
+  gap or stake, one emoji, ending with " #shorts #ai". Never clickbait the video doesn't deliver;
 "description": line 1 repeats the searchable subject in a plain sentence, then 1-2 sentences, then credit line "Clip: <uploader>",
   then "Follow @thebotbeat for a new robot or AI moment every day.", then 8 hashtags;
-"tags": list of 14 tags.
+"tags": list of 14 tags (subject, company, product, category terms, plus broad ai/robots/tech);
 "ig_caption": Instagram Reels caption: line 1 = scroll-stopping hook (max 10 words, 1 emoji), blank line, 2 short lines with the
   real facts, blank line, a question people can answer in one word in the comments, then "Follow for a new robot or AI moment every day 🤖",
   then "Clip: <uploader>", blank line, then 15 hashtags in one line: 4 big (#robots #ai #technology #tech), 6 mid (#robotics #humanoidrobot
-  #artificialintelligence #futuretech #innovation #techreels), 5 niche about this exact clip (company, robot name, country, what it does)."""
+  #artificialintelligence #futuretech #innovation #techreels), 5 niche about this exact clip (company, product, what it does)."""
     txt = ask(prompt + "\nAnswer with valid JSON only.", min_len=200)
     m = re.search(r"\{.*\}", txt, re.S)
     return json.loads(m.group(0))
@@ -423,7 +439,7 @@ def main():
        "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(total), "-r", str(FPS), "-c:v", "libx264", "-preset", "veryfast",
        "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(WORK / "short.mp4"), timeout=1500)
     shutil.copy(WORK / "short.mp4", OUT / "short.mp4")
-    s.update({"mode": clip.get("mode", "ai"), "topic": clip.get("topic", ""), "source_url": clip["url"], "source_views": clip.get("views", 0), "seconds": round(total, 1)})
+    s.update({"bucket": clip.get("bucket", ""), "china": bool(clip.get("china")), "mode": clip.get("mode", "ai"), "topic": clip.get("topic", ""), "source_url": clip["url"], "source_views": clip.get("views", 0), "seconds": round(total, 1)})
     json.dump(s, open(OUT / "metadata.json", "w"), indent=1)
     print("made", OUT / "short.mp4", round(total, 1), "s")
 

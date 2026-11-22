@@ -13,10 +13,15 @@ if vid_id(src) in load_used():
 f = HERE / "used.json"
 used = json.loads(f.read_text()) if f.exists() else []
 used.append(src); f.write_text(json.dumps(used))
+try:   # remember the topic bucket + China flag, so find_clip keeps the feed global (China cap, bucket rotation)
+    import mix
+    mix.record(vid_id(src), m.get("bucket", ""), bool(m.get("china")))
+except Exception as e:
+    print("mark_used: couldn't record pick history:", e)
 q = HERE / "queue.txt"
 if q.exists():
     q.write_text("".join(l + "\n" for l in q.read_text().splitlines()
                          if l.strip() and vid_id(l.split()[0]) != vid_id(src)))
 r = subprocess.run([sys.executable, str(HERE.parent / "common" / "gitsave.py"), "botbeat: lock clip " + vid_id(src),
-                    "--union", "botbeat/used.json", "--lines", "botbeat/queue.txt"], cwd=HERE.parent)
+                    "--union", "botbeat/used.json", "botbeat/picks.json", "--lines", "botbeat/queue.txt"], cwd=HERE.parent)
 sys.exit(0 if r.returncode == 0 else 1)

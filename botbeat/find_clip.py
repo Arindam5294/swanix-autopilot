@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pick the next source clip autonomously from EITHER region (US + India) — no manual link needed.
+"""Pick the next source clip autonomously, from the WHOLE world of AI + robotics (see mix.py) — no manual link needed.
 Order: botbeat/queue.txt (links you send the Telegram bot are queued there by the Studio workflow,
 the only Telegram reader) -> per-region YouTube search via the Data API (regionCode + regional
 relevanceLanguage) -> per-region yt-dlp search as a no-API-quota fallback.
@@ -10,6 +10,8 @@ import json, os, sys, pathlib, subprocess, datetime, urllib.request, urllib.pars
 HERE = pathlib.Path(__file__).resolve().parent
 CFG = json.load(open(HERE / "config.json"))
 USED_F = HERE / "used.json"
+sys.path.insert(0, str(HERE))
+import mix
 URL_RE = re.compile(r"https?://\S+")
 ID_RE = re.compile(r"(?:v=|youtu\.be/|shorts/|embed/|live/)([A-Za-z0-9_-]{11})")
 def vid_id(url):
@@ -86,33 +88,28 @@ def q_topic(line):
     t = next((p[6:] for p in parts if p.startswith("topic=")), "")
     return t.replace("_", " ") or None
 
-def youtube_search_region(region):
-    """Search the YouTube Data API for one region (regionCode + relevanceLanguage).
-    Returns list of candidate dicts with 'region' tag."""
+def youtube_search(plan):
+    """One global YouTube Data API search per planned term (~100 units each). Candidates are tagged with their bucket."""
     global API_QUOTA_HIT
     key = os.environ.get("YOUTUBE_API_KEY")
     if not key:
         print("find_clip: YOUTUBE_API_KEY missing, using yt-dlp fallback", file=sys.stderr); return []
-    if API_QUOTA_HIT:
-        print("find_clip: API quota eaten this run, using yt-dlp fallback", file=sys.stderr); return []
-    code = region.get("code", "US")
-    lang = region.get("lang", "en")
-    days = max(CFG["max_age_days"], CFG.get("pool_days", 180))
+    days = max(CFG["max_age_days"], CFG.get("pool_days", 120))
     since = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    ids = []
-    for q in CFG["search_terms"]:
-        p = urllib.parse.urlencode({"part": "id", "q": q, "type": "video", "order": "viewCount",
-                                    "publishedAfter": since, "regionCode": code,
-                                    "relevanceLanguage": lang, "safeSearch": "strict",
-                                    "maxResults": 25, "key": key})
+    order = CFG.get("search_order", "relevance")   # relevance + publishedAfter surfaces fresh developments, not old mega-hits
+    ids, bucket_of = [], {}
+    for q, b in plan:
+        if API_QUOTA_HIT: break
+        p = urllib.parse.urlencode({"part": "id", "q": q, "type": "video", "order": order, "publishedAfter": since,
+                                    "relevanceLanguage": "en", "safeSearch": "strict", "maxResults": 15, "key": key})
         try:
-            ids += [i["id"]["videoId"] for i in get("https://www.googleapis.com/youtube/v3/search?" + p).get("items", [])]
+            for i in get("https://www.googleapis.com/youtube/v3/search?" + p).get("items", []):
+                v = i["id"]["videoId"]; ids.append(v); bucket_of.setdefault(v, b)
         except Exception as e:
-            if "429" in str(e):
+            if "429" in str(e) or "403" in str(e):
                 API_QUOTA_HIT = True
-                print(f"find_clip: region {code} search hit HTTP 429 (quota) -> switching to fallback", file=sys.stderr)
-                return []
-            print(f"find_clip: region {code} search '{q}' failed: {e}", file=sys.stderr)
+                print(f"find_clip: API quota/limit hit on '{q}' -> fallback for the rest", file=sys.stderr); break
+            print(f"find_clip: search '{q}' failed: {e}", file=sys.stderr)
     ids = list(dict.fromkeys(ids))
     out = []
     for i in range(0, len(ids), 50):
@@ -120,63 +117,57 @@ def youtube_search_region(region):
         try:
             items = get("https://www.googleapis.com/youtube/v3/videos?" + p).get("items", [])
         except Exception as e:
-            print(f"find_clip: region {code} videos lookup failed: {e}", file=sys.stderr); continue
+            print(f"find_clip: videos lookup failed: {e}", file=sys.stderr); continue
         for v in items:
-            views = int(v["statistics"].get("viewCount", 0))
             if v["snippet"].get("liveBroadcastContent") != "none": continue
             if minutes(v["contentDetails"].get("duration")) > CFG["max_clip_minutes"]: continue
             out.append({"url": "https://www.youtube.com/watch?v=" + v["id"], "title": v["snippet"]["title"],
-                        "desc": v["snippet"]["description"][:1500], "views": views,
+                        "desc": v["snippet"]["description"][:1500], "views": int(v["statistics"].get("viewCount", 0)),
                         "uploader": v["snippet"]["channelTitle"], "published": v["snippet"].get("publishedAt", ""),
-                        "region": code})
-    print(f"find_clip: API region {code}: {len(ids)} search hits, {len(out)} usable videos", file=sys.stderr)
+                        "bucket": bucket_of.get(v["id"], "")})
+    print(f"find_clip: API: {len(plan)} terms, {len(ids)} hits, {len(out)} usable videos", file=sys.stderr)
     return out
 
-def youtube_dlp_search_region(region):
-    """No-API-quota fallback: yt-dlp flat-playlist search scoped to a region.
-    flat-playlist returns ids+titles reliably even from GitHub-hosted runners (full metadata
-    lookups get bot-blocked there). Views are unknown (0); the last-resort tier therefore does
-    NOT gate on views, so a clip still gets picked and posted every run.
-    Returns candidate dicts tagged 'region'."""
-    code = region.get("code", "US")
-    lang = region.get("lang", "en")
-    term = CFG["search_terms"][0]
-    out = []
-    try:
-        cmd = ["yt-dlp", "--flat-playlist", "-J", "--no-warnings", "--ignore-errors",
-               "--playlist-items", "1-30",
-               "--extractor-args", "youtube:player_client=default",
-               "ytsearch30:" + term]
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=150)
-        if r.returncode:
-            print(f"find_clip: region {code} yt-dlp search failed: {r.stderr.strip()[:200]}", file=sys.stderr)
-            return []
-        j = json.loads(r.stdout)
-        for e in j.get("entries", []):
-            vid = e.get("id")
-            if not vid: continue
-            out.append({"url": "https://www.youtube.com/watch?v=" + vid,
-                        "title": e.get("title") or "", "desc": "",
-                        "views": 0,  # flat-playlist gives no stats; last-resort handles this
-                        "uploader": e.get("channel") or e.get("uploader") or "",
-                        "published": "",
-                        "region": code, "source": "ytdlp-search"})
-        print(f"find_clip: fallback region {code}: {len(out)} results for '{term}'", file=sys.stderr)
-        return out
-    except Exception as e:
-        print(f"find_clip: region {code} fallback error: {e}", file=sys.stderr)
-        return []
+def youtube_dlp_search(plan):
+    """No-quota fallback: yt-dlp search over one term from EACH bucket (it used to search only 'China humanoid robot')."""
+    out, seen_b = [], set()
+    for q, b in plan:
+        if b in seen_b: continue
+        seen_b.add(b)
+        try:
+            cmd = ["yt-dlp", "--flat-playlist", "-J", "--no-warnings", "--ignore-errors", "--playlist-items", "1-12",
+                   "--extractor-args", "youtube:player_client=default", "ytsearchdate12:" + q]
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            if r.returncode:
+                print(f"find_clip: yt-dlp search '{q}' failed: {r.stderr.strip()[:150]}", file=sys.stderr); continue
+            for e in json.loads(r.stdout).get("entries", []):
+                if not e.get("id"): continue
+                out.append({"url": "https://www.youtube.com/watch?v=" + e["id"], "title": e.get("title") or "", "desc": "",
+                            "views": e.get("view_count") or 0, "uploader": e.get("channel") or e.get("uploader") or "",
+                            "published": "", "bucket": b, "source": "ytdlp-search"})
+        except Exception as ex:
+            print(f"find_clip: yt-dlp search '{q}' error: {ex}", file=sys.stderr)
+    print(f"find_clip: fallback: {len(out)} results over {len(seen_b)} topics", file=sys.stderr)
+    return out
 
 def age_days(m):
     if m.get("source") == "ytdlp-search" and not m["published"]:
-        return 0  # search results assumed fresh
+        return 0  # date-sorted search results are fresh
     try:
-        t = datetime.datetime.strptime(m["published"][:19], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+        t = datetime.datetime.strptime(m["published"][:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=datetime.timezone.utc)
         return (datetime.datetime.now(datetime.timezone.utc) - t).days
     except Exception:
         return 9999
 
+def emit(m, source):
+    m["source"] = source
+    m["china"] = mix.is_china(m)
+    m.setdefault("bucket", "china" if m["china"] else "other")
+    print(json.dumps(m))
+
 def main():
+    allow_cn = mix.china_allowed(CFG)
+    print(f"find_clip: China clip allowed this run: {allow_cn} (last picks: {mix.recent(4)})", file=sys.stderr)
     manual = queue_links()                   # links you send the bot land here (studio/run.py queues them)
     for line in manual:                      # links you chose yourself skip the view bar
         url, auto = split_q(line)
@@ -186,67 +177,53 @@ def main():
             continue
         m = meta(url) or {"url": url, "title": "", "desc": "", "views": 0, "uploader": ""}
         if not (m.get("title") or "").strip():
-            # No title/description = nothing true to narrate, and the topic filter can't run. Never pass it on
-            # (Oct 30: an empty-metadata clip became a Short of the LLM saying "no source provided").
             print(f"find_clip: no metadata for {url} (YouTube blocked the lookup), skipped this run", file=sys.stderr); continue
         topic = q_topic(line)
         if topic:   # mix mode: a general trend; Botbeat narrates THIS topic, not robots
             if bad(m["title"] + m["desc"]):
                 print(f"find_clip: general trend clip banned, skipped: {m['title'][:80]!r}", file=sys.stderr); continue
-            m.update({"source": "trend-general", "mode": "general", "topic": topic}); print(json.dumps(m)); return
+            m.update({"mode": "general", "topic": topic, "bucket": "trend-general"}); emit(m, "trend-general"); return
         if auto and m["title"] and not (on_topic(m["title"]) and not bad(m["title"] + m["desc"])):
             print(f"find_clip: trend clip off-topic, skipped: {m['title'][:80]!r}", file=sys.stderr); continue
-        m["source"] = "trend" if auto else "manual"; print(json.dumps(m)); return
+        if auto and mix.is_china(m) and not allow_cn:   # auto-queued trends obey the China cap; your own links never do
+            print(f"find_clip: trend clip is China and the China cap is reached, kept for later: {m['title'][:80]!r}", file=sys.stderr); continue
+        emit(m, "trend" if auto else "manual"); return
 
-    # Multi-region discovery: merge pools from every configured region.
-    pool = []
-    for region in REGIONS:
-        hits = youtube_search_region(region)
-        if not hits:                       # API miss -> use no-API fallback for this region
-            hits = youtube_dlp_search_region(region)
-        pool += hits
+    plan = mix.plan_terms(CFG)
+    print("find_clip: search plan: " + "; ".join(f"{b}:{q}" for q, b in plan), file=sys.stderr)
+    pool = youtube_search(plan)
+    if len(pool) < 10:
+        pool += youtube_dlp_search(plan)
 
-    # Dedupe by url, keep highest views version.
     by_url = {}
     for m in pool:
         cur = by_url.get(m["url"])
         if not cur or m["views"] > cur["views"]:
             by_url[m["url"]] = m
-    pool = list(by_url.values())
+    pool = [m for m in by_url.values() if allow_cn or not mix.is_china(m)]
 
-    # Apply the same filters as before, across all regions.
     filtered = [m for m in pool
                 if vid_id(m["url"]) not in USED and m["views"] >= CFG["min_views"]
                 and not bad(m["title"] + m["desc"]) and on_topic(m["title"])]
     trusted = {c.lower() for c in CFG.get("trusted_channels", [])}
-    is_trusted = lambda m: m["uploader"].lower() in trusted
     fresh = CFG["max_age_days"]
-    tiers = [("trusted-fresh", lambda m: is_trusted(m) and age_days(m) <= fresh),
-             ("trusted-older", is_trusted)]
-    if CFG.get("allow_untrusted_fallback", True) or not CFG.get("trusted_only"):
-        tiers.append(("any-fresh", lambda m: age_days(m) <= fresh))
+    tiers = [("fresh", lambda m: age_days(m) <= fresh), ("trusted-older", lambda m: m["uploader"].lower() in trusted)]
     for name, ok in tiers:
-        hits = sorted([m for m in filtered if ok(m)], key=lambda x: -x["views"])
+        hits = sorted([m for m in filtered if ok(m)], key=lambda x: -mix.score(x, trusted))
         print(f"find_clip: tier {name}: {len(hits)} candidates", file=sys.stderr)
+        for m in hits[:5]:
+            print(f"   {mix.score(m, trusted):5.2f} [{m.get('bucket')}] {m['views']:>9} {m['title'][:70]!r}", file=sys.stderr)
         if hits:
-            m = hits[0]
-            reg = m.pop("region", "?")
-            m["source"] = f"youtube-search:{name}:region-{reg}"
-            print(json.dumps(m)); return
+            emit(hits[0], f"youtube-search:{name}:{hits[0].get('bucket')}"); return
 
-    # LAST RESORT: still nothing passed the strict filters (e.g. API quota + flat-playlist fallback
-    # gives no view counts). Grab the first non-banned, not-already-used clip from the pool.
-    # This guarantees the bot posts SOMETHING every scheduled run instead of going silent.
-    fallback = [m for m in pool
-                if vid_id(m["url"]) not in USED and not bad(m["title"] + m["desc"])]
+    # LAST RESORT (e.g. quota + fallback without view counts): best on-topic, not-used clip, China cap still applies.
+    fallback = [m for m in pool if vid_id(m["url"]) not in USED and not bad(m["title"] + m["desc"]) and on_topic(m["title"])]
+    fallback.sort(key=lambda x: -mix.score(x, trusted))
     print(f"find_clip: last-resort tier: {len(fallback)} candidates", file=sys.stderr)
     if fallback:
-        m = fallback[0]
-        reg = m.pop("region", "?")
-        m["source"] = f"youtube-search:last-resort:region-{reg}"
-        print(json.dumps(m)); return
+        emit(fallback[0], f"youtube-search:last-resort:{fallback[0].get('bucket')}"); return
 
-    print(f"find_clip: nothing new passed the filters (US + India) — {len(pool)} pool entries, {len(filtered)} filtered", file=sys.stderr)
+    print(f"find_clip: nothing new passed the filters — {len(pool)} pool entries, {len(filtered)} filtered", file=sys.stderr)
 
 if __name__ == "__main__":
     main()
