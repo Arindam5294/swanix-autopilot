@@ -1618,10 +1618,12 @@
   "tp2": 0.8988638401031493,
   "candle_open_ms": 1795363200000,
   "mode": "blocked",
-  "status": "open",
+  "status": "loss",
   "confidence": 75,
   "block_reason": "R:R 0.92 after real stop placement is below 1.5",
-  "htf": {}
+  "htf": {},
+  "resolved_at": 1795414499,
+  "r": -1.0
  },
  {
   "id": "SOLUSDT-1h-SHORT-1795384755",
@@ -1683,5 +1685,22 @@
   },
   "resolved_at": 1795400999,
   "r": -1.0
+ },
+ {
+  "id": "BTCUSDT-1h-SHORT-1795420822",
+  "ts": 1795420822,
+  "sym": "BTCUSDT",
+  "tf": "1h",
+  "side": "SHORT",
+  "entry": 61496.3,
+  "sl": 62089.059375,
+  "tp1": 60731.65625,
+  "tp2": 60088.633593750004,
+  "candle_open_ms": 1795413600000,
+  "mode": "blocked",
+  "status": "open",
+  "confidence": 89,
+  "block_reason": "R:R 0.90 after real stop placement is below 1.5",
+  "htf": {}
  }
 ]
