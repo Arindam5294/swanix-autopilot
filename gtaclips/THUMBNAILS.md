@@ -1,63 +1,67 @@
-# THUMBNAILS.md
+# THUMBNAILS.md — GTA 6 Clips Channel Playbook
 
-## Title patterns
+## Title Patterns (fill-in-the-blank + real example)
 
-1. **`Come with me to [action] GTA 6!`**
-   * *Example:* Come with me to pick up GTA 6! (843.3x)
-2. **`Is [technical detail/feature] really a problem for GTA 6?`**
-   * *Example:* Is 30 FPS really a problem for GTA 6? (428.1x)
-3. **`[X] [CRAZY/NEW] Features In GTA 6 That Were NOT In GTA 5`**
-   * *Example:* 15 CRAZY Features In GTA 6 That Were NOT In GTA 5 (132.1x)
-4. **`[X] THINGS From GTA 5 You WON'T Be Able To Do In GTA 6`**
-   * *Example:* 15 THINGS From GTA 5 You WON'T Be Able To Do In GTA 6 (96.8x)
-5. **`How Many [Objects/Maps] Fit In GTA 6?`**
-   * *Example:* How Many Rockstar Maps Fit In GTA 6? (62.6x)
-6. **`[Action/System] in GTA 6 Works Differently To GTA 5`**
-   * *Example:* Robbing Stores in GTA 6 Works Differently To GTA 5 (25.9x)
-7. **`[X] Things You NEED To Know Before You Play GTA 6`**
-   * *Example:* 200+ THINGS You NEED To Know Before You Play GTA 6 (10.4x)
+| Template | Example from Data |
+|---|---|
+| **Finally We [ACTION] Our [ITEM] For GTA 6 😍** | Finally We BOOTED Our PS5 For GTA 6 😍 |
+| **[NUMBER] [ADJECTIVE] Things In GTA 6 That Were NOT In GTA 5** | 15 CRAZY Features In GTA 6 That Were NOT In GTA 5 |
+| **[NUMBER] THINGS You NEED To Do On DAY 1 In GTA 6** | 12 THINGS You NEED To Do On DAY 1 in GTA 6 |
+| **Don't [ACTION] GTA 6 Without Knowing THIS 💀** | Don't Buy GTA 6 Without Knowing THIS 💀 |
+| **GTA 6 [MECHANIC] Works Differently To GTA 5** | Robbing Stores in GTA 6 Works Differently To GTA 5 |
+| **GTA 6 Is More [GAME] Than You Think** | GTA 6 Is More Red Dead 2 Than You Think |
+| **How To [SPECIFIC ACTION] In GTA 6** | How To Steal A Jet From The Military Base In GTA 6 |
+| **[NUMBER]+ THINGS You NEED To Know Before You Play GTA 6** | 200+ THINGS You NEED To Know Before You Play GTA 6 |
 
 ---
 
-## Thumbnail rules
+## Thumbnail Rules
 
-* **1–3 Word Overlays:** High-contrast text callouts in bold yellow or white with red highlights (e.g., `"30 FPS?"`, `"DAY 1"`, `"NOT IN GTA 5"`, `"VS"`, `"SMARTER"`).
-* **Colors:** Use Vice City neon pink/cyan overlays contrasted against dark backgrounds or real-world lighting.
-* **Layout & Visuals:**
-  * **Split-Screen Comparisons:** Side-by-side shots contrasting GTA 5 graphics/gameplay vs GTA 6 (or real life vs game).
-  * **IRL / High-Value Props:** Show extreme real-world items tied to the game (e.g., Ferrari, London streets, $6,000 PC build).
-  * **Targeted Focus Indicators:** Use bright red circles or arrows pointing out specific mechanical details (e.g., wanted system icons, map boundaries, store robbery mechanics).
+**Big Text (1–3 words, high contrast):**
+- FINALLY / NEW / PS5 / TV / MAP / DAY 1 / COPS / VS / FIRST / 15 / 200+
+- Use **GTA 6 pink/teal** on black or **yellow/red** on dark gameplay stills
 
----
+**Faces / Expressions:**
+- Shocked (😱), hyped (😎🤩), laughing (😂💀), mind-blown (🤯) — **creator face or character close-up**
+- Roblox avatar faces for animation shorts
 
-## Words that win
+**Arrows / Circles / Callouts:**
+- Red arrow → new TV/PS5 unboxing
+- Circle + "NEW" badge on map differences
+- Side-by-side split (GTA 5 left | GTA 6 right) with "VS" center
+- Numbered badges (1, 2, 3…) for listicles
 
-1. `30 FPS`
-2. `Works Differently`
-3. `NOT In GTA 5`
-4. `WON'T Be Able To Do`
-5. `NEED To Know`
-6. `DAY 1`
-7. `Real Life`
-8. `CRAZY Features`
-9. `How Many`
-10. `vs` / `VS`
-11. `Smarter`
-12. `Wanted System`
+**Picture Content:**
+- **Shorts:** Vertical gameplay clip (combat, driving, map zoom) + facecam inset
+- **Longs:** High-res trailer frame or captured 4K gameplay — Lucia/Jason close-up, Vice City skyline, map overlay, or console/TV unboxing shot
+- **Animations:** Roblox thumbnail style — bright, exaggerated poses, "CHICKEN GUARDIAN" branding
 
 ---
 
-## Lengths
+## Words That Win (15)
 
-* **Shorts Target:** Aim for **11s–27s** (Median: 27s). Ultra-short clips (11s–15s) drive massive rewatch loops and hit the highest multipliers (up to 603.9x).
-* **Long Target:** Aim for **150s–176s** (Median: 176s). High-performing long-form videos peak around ~3 minutes (176s hit 843.3x) by delivering tight, focused information without fluff.
+FINALLY · NEW · PS5 · MAP · DAY 1 · COPS · VS · FIRST · CRAZY · NEED · WON'T · DIFFERENT · LAUNCH · STEAL · ROBLOX
 
 ---
 
-## Avoid
+## Lengths (Copy These Medians)
 
-* **Hashtag-Only Titles:** Do not publish titles that only use `#gta #gta6 #shorts` (these cap out at much lower view multipliers like 3.8x–11.8x).
-* **Single Word/Vague Titles:** Avoid minimal titles like `GTA 6` (8.5x) or generic clickbait without a clear mechanism or topic hook.
-* **Bloated Video Lengths:** Avoid pushing past 3,000+ seconds unless delivering a specialized deep dive; concise 3-minute long-form videos vastly outperform 50+ minute rants in view ratios.
+| Format | Target Length | Why |
+|---|---|---|
+| **Shorts** | **28 s** (median) | Data cluster: 15–53 s; >60 s drops retention |
+| **Longs** | **11–12 min** (≈692 s median) | Sweet spot: 68 s–18 min; 33 k s stream is outlier |
 
-_Updated 2026-11-18 from 70 outliers._
+> **Rule:** Shorts ≤ 60 s hard cap. Longs 8–15 min for listicles/guides; 60–90 s for "Finally…" reaction vids.
+
+---
+
+## Avoid (Flops / Spam Signals)
+
+- **Pure tag titles** — `#gta #gta6 #shorts` (ratio drops 71× → 7× across repeats)
+- **"Gameplay GTA VI" / "GTA VI Gameplay"** generic — low CTR unless *actual* new footage
+- **Misleading "Gameplay" on Roblox animations** — audience backlash in comments
+- **Non-English only titles** without localized thumbnail (e.g., *Lançamento GTA 6* 8.3×)
+- **Clickbait without payoff** — "Unrealistic !!!!!" (8.3×) vs. specific claim "One Mission = 2 Hours" (8.3× but higher trust)
+- **Overused "vs" without visual split** — thumbnail must show side-by-side proof
+
+_Updated 2026-11-23 from 113 outliers._
