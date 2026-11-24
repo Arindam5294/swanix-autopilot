@@ -22,3 +22,4 @@ Every post, newest last.
 | 2026-11-20 06:45 | Ludwig loses it in GTA 6 😭 #shorts |  | https://youtube.com/shorts/fNtBbL1K53Q |
 | 2026-11-20 11:31 | This GTA 6 moment is HEARTBREAKING 💔 #shorts |  | https://youtube.com/shorts/kFvpIR5OZjI |
 | 2026-11-20 22:04 | CarryMinati loses it playing GTA 6 😭 #shorts |  | https://youtube.com/shorts/NdVlVhr2IoU |
+| 2026-11-24 01:57 | IGN ka GTA 6 mein Donnie ka bura haal 😭 #shorts |  | https://youtube.com/shorts/69qRHS_ZBt4 |
