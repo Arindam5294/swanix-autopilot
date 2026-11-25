@@ -1987,14 +1987,16 @@
   "tp2": 0.8725269317626954,
   "candle_open_ms": 1795572000000,
   "mode": "shadow",
-  "status": "open",
+  "status": "loss",
   "confidence": 85,
   "rr": 2.83,
   "htf": {
    "4h": "down",
    "1d": "down",
    "1h": "down"
-  }
+  },
+  "resolved_at": 1795630799,
+  "r": -1.0
  },
  {
   "id": "BTCUSDT-1h-SHORT-1795600532",
@@ -2067,9 +2069,53 @@
   "tp2": 63.64464302062988,
   "candle_open_ms": 1795618800000,
   "mode": "blocked",
-  "status": "open",
+  "status": "loss",
   "confidence": 83,
   "block_reason": "R:R 1.46 after real stop placement is below 1.5",
-  "htf": {}
+  "htf": {},
+  "resolved_at": 1795629599,
+  "r": -1.0
+ },
+ {
+  "id": "DOGEUSDT-1h-SHORT-1795630537",
+  "ts": 1795630537,
+  "sym": "DOGEUSDT",
+  "tf": "1h",
+  "side": "SHORT",
+  "entry": 0.0549,
+  "sl": 0.05578314285714285,
+  "tp1": 0.05217652469873428,
+  "tp2": 0.05120070092380047,
+  "candle_open_ms": 1795626000000,
+  "mode": "shadow",
+  "status": "open",
+  "confidence": 90,
+  "rr": 2.63,
+  "htf": {
+   "4h": "down",
+   "1d": "down",
+   "1h": "flat"
+  }
+ },
+ {
+  "id": "SUIUSDT-1h-SHORT-1795630657",
+  "ts": 1795630657,
+  "sym": "SUIUSDT",
+  "tf": "1h",
+  "side": "SHORT",
+  "entry": 0.6562,
+  "sl": 0.6601942857142857,
+  "tp1": 0.630011236667633,
+  "tp2": 0.6153287827968597,
+  "candle_open_ms": 1795626000000,
+  "mode": "shadow",
+  "status": "open",
+  "confidence": 73,
+  "rr": 4.69,
+  "htf": {
+   "4h": "down",
+   "1d": "down",
+   "1h": "flat"
+  }
  }
 ]
