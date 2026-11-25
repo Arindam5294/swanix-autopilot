@@ -1873,10 +1873,12 @@
   "tp2": 67.03493881225586,
   "candle_open_ms": 1795514400000,
   "mode": "blocked",
-  "status": "open",
+  "status": "win",
   "confidence": 84,
   "block_reason": "R:R 1.23 after real stop placement is below 1.5",
-  "htf": {}
+  "htf": {},
+  "resolved_at": 1795592399,
+  "r": 1.231
  },
  {
   "id": "ETHUSDT-1h-SHORT-1795550241",
@@ -1890,10 +1892,12 @@
   "tp2": 1624.5331787109374,
   "candle_open_ms": 1795543200000,
   "mode": "blocked",
-  "status": "open",
+  "status": "win",
   "confidence": 86,
   "block_reason": "R:R 0.56 after real stop placement is below 1.5",
-  "htf": {}
+  "htf": {},
+  "resolved_at": 1795592399,
+  "r": 0.558
  },
  {
   "id": "SOLUSDT-1h-SHORT-1795550339",
@@ -1907,10 +1911,12 @@
   "tp2": 66.49481811523438,
   "candle_open_ms": 1795543200000,
   "mode": "blocked",
-  "status": "open",
+  "status": "win",
   "confidence": 82,
   "block_reason": "R:R 0.41 after real stop placement is below 1.5",
-  "htf": {}
+  "htf": {},
+  "resolved_at": 1795598099,
+  "r": 0.413
  },
  {
   "id": "XRPUSDT-1h-SHORT-1795550409",
@@ -1941,10 +1947,12 @@
   "tp2": 0.053733485937118526,
   "candle_open_ms": 1795550400000,
   "mode": "blocked",
-  "status": "open",
+  "status": "win",
   "confidence": 86,
   "block_reason": "R:R 0.95 after real stop placement is below 1.5",
-  "htf": {}
+  "htf": {},
+  "resolved_at": 1795592399,
+  "r": 0.955
  },
  {
   "id": "SUIUSDT-1h-LONG-1795557630",
@@ -1978,6 +1986,61 @@
   "status": "open",
   "confidence": 85,
   "rr": 2.83,
+  "htf": {
+   "4h": "down",
+   "1d": "down",
+   "1h": "down"
+  }
+ },
+ {
+  "id": "BTCUSDT-1h-SHORT-1795600532",
+  "ts": 1795600532,
+  "sym": "BTCUSDT",
+  "tf": "1h",
+  "side": "SHORT",
+  "entry": 58993.05,
+  "sl": 60222.781875,
+  "tp1": 58377.084375,
+  "tp2": 57345.18203125,
+  "candle_open_ms": 1795593600000,
+  "mode": "blocked",
+  "status": "open",
+  "confidence": 90,
+  "block_reason": "R:R 0.37 after real stop placement is below 1.5",
+  "htf": {}
+ },
+ {
+  "id": "SOLUSDT-1h-SHORT-1795600813",
+  "ts": 1795600813,
+  "sym": "SOLUSDT",
+  "tf": "1h",
+  "side": "SHORT",
+  "entry": 67.76,
+  "sl": 70.28833333333333,
+  "tp1": 66.30412139892577,
+  "tp2": 64.76963424682617,
+  "candle_open_ms": 1795593600000,
+  "mode": "blocked",
+  "status": "open",
+  "confidence": 80,
+  "block_reason": "R:R 0.50 after real stop placement is below 1.5",
+  "htf": {}
+ },
+ {
+  "id": "XRPUSDT-1h-SHORT-1795600834",
+  "ts": 1795600834,
+  "sym": "XRPUSDT",
+  "tf": "1h",
+  "side": "SHORT",
+  "entry": 0.916,
+  "sl": 0.9317142857142857,
+  "tp1": 0.8819300889968872,
+  "tp2": 0.8698088109493256,
+  "candle_open_ms": 1795593600000,
+  "mode": "shadow",
+  "status": "open",
+  "confidence": 85,
+  "rr": 1.84,
   "htf": {
    "4h": "down",
    "1d": "down",
