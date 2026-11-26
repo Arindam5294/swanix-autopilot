@@ -24,4 +24,8 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       - run: |
           git config user.name "swanix-bot"; git config user.email "bot@users.noreply.github.com"
-          git add -A . && (git diff --cached --quiet || (git commit -m "alpha: seen" && git pull --rebase -q && git push))
+          git add -A .
+          if ! git diff --cached --quiet; then
+            git commit -m "alpha: seen"
+            for i in 1 2 3 4 5; do git pull --rebase -q && git push && break; echo "push raced, retry $i"; sleep $((i*7)); done
+          fi
