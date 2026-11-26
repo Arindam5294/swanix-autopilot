@@ -105,8 +105,12 @@ def check_script(s):
     m = REFUSAL.search(blob)
     if m:
         print(f"Script is an AI refusal, not a story ('{m.group(0)}'). Not making a Short from it.", file=sys.stderr); sys.exit(6)
-    if len(s["vo"].split()) < 30:
+    if len(s["vo"].split()) < 22:
         print("Voiceover too short to be a real script. Not making a Short from it.", file=sys.stderr); sys.exit(6)
+    ws = s["vo"].split()
+    if len(ws) > 44:   # hard cap: keep the Short at 15-18 s even if the writer ran long (cut at the last full sentence)
+        cut = " ".join(ws[:44]); m = re.search(r"^(.*[.?!])", cut, re.S)
+        s["vo"] = m.group(1) if m and len(m.group(1).split()) >= 22 else cut
     return s
 
 def script(clip):
@@ -121,19 +125,21 @@ HARD RULES: only facts stated in the title/description (never invent numbers, pr
 no hype words ('insane', 'crazy', 'mind-blowing', 'game changer'); name a country only when the title/description states it and it
 matters to the story (never lead with a country, lead with WHAT happens).
 
-HOOK PLAYBOOK (0-2 s decides everything):
+HOOK PLAYBOOK (0-2 s decides everything; over half of our viewers swipe away in the first 1-2 seconds, so frame 1 must grab):
 1. Write 3 different hooks using 3 different formulas from this list, then pick the strongest:
    - Stakes / consequence: what this means for jobs, homes, money, safety ("THIS ROBOT JUST TOOK A WAREHOUSE SHIFT")
    - First-ever / record: only if the source says it ("FIRST ROBOT TO ...")
    - Contrast / surprise: expectation vs reality ("IT LOOKS HUMAN. IT ISN'T.")
    - Specific number from the source ("10 HOURS. NO BREAKS.")
    - Open question the clip answers ("CAN AI PASS A JOB INTERVIEW?")
+   - Setup + open loop (our best Short, 95.5% stayed to watch: "Two AIs Had a Job Interview. Then THIS Happened"):
+     a plain setup, then an unanswered gap ("ENGINEERS GAVE IT 3 SECONDS...", "THEN THIS HAPPENED")
    The hook must describe what is ON SCREEN in the first second, max 6 words, ALL CAPS, never generic ("YOU WON'T BELIEVE", "WATCH THIS", "WAIT FOR IT").
-2. Voiceover structure (45-55 words, spoken fast, short sentences):
-   - Line 1 (max 8 words): restate the hook as a spoken punch, present tense, no intro, never "In this video", "Have you ever", "Meet".
+2. Voiceover structure (32-40 words MAX so the Short ends at 15-18 seconds, spoken fast, short sentences, zero filler):
+   - Line 1 (max 8 words): start mid-action at peak tension and leave a question open, present tense, no intro, never "In this video", "Have you ever", "Meet".
    - Line 2: who made it and what it does, plainly (company / lab / product name from the source).
    - Open loop: tease the most surprising fact ("But the strangest part is...") and pay it off within the next sentence.
-   - Why it matters to a normal viewer in one sentence (their job, home, phone, safety, price) only if supported by the source.
+   - Optional, only if words remain: why it matters to a normal viewer in one short sentence, only if the source supports it.
    - Last line: a short question that connects back to line 1 so the Short loops.
 3. CTA on screen at the end: max 5 words, ALL CAPS, a one-word-answer question ("WOULD YOU TRUST IT?").
 
@@ -141,7 +147,7 @@ Return ONLY JSON with keys:
 "hook_options": the 3 hooks you wrote; "hook": the strongest one;
 "vo": the voiceover; "cta": the CTA;
 "title": under 60 characters: front-load the searchable subject (company / robot / model name people type), then the curiosity
-  gap or stake, one emoji, ending with " #shorts #ai". Never clickbait the video doesn't deliver;
+  gap or stake (setup + "Then THIS Happened"-style open loop works best for us), one emoji, ending with " #shorts #ai". Never clickbait the video doesn't deliver;
 "description": line 1 repeats the searchable subject in a plain sentence, then 1-2 sentences, then credit line "Clip: <uploader>",
   then "Follow @thebotbeat for a new robot or AI moment every day.", then 8 hashtags;
 "tags": list of 14 tags (subject, company, product, category terms, plus broad ai/robots/tech);
@@ -165,7 +171,7 @@ title/description is about them. Only facts stated in the title/description (nev
 no slang, no crypto, no hype words.
 Return ONLY JSON with keys:
 "hook": top-of-screen hook, max 5 words, ALL CAPS, about {clip['topic']};
-"vo": voiceover, 45-55 words, sentence 1 (max 8 words) names the most surprising thing on screen, no intro, ends with a short question that links back to sentence 1;
+"vo": voiceover, 32-40 words max (Short must end at 15-18 s), sentence 1 (max 8 words) starts mid-action and names the most surprising thing on screen, no intro, ends with a short question that links back to sentence 1;
 "cta": max 5 words ALL CAPS question shown at the end;
 "title": viral title under 70 characters about {clip['topic']} with one emoji, ending with " #shorts #trending";
 "description": 2-3 sentences + credit line "Clip: <uploader>" + 8 hashtags about the topic;
@@ -256,7 +262,16 @@ def pick_segments(src, total):
                           "-vf", "select='gt(scene,0.30)',showinfo", "-an", "-f", "null", "-"],
                          capture_output=True, text=True).stderr
     cuts = sorted({round(float(x), 2) for x in re.findall(r"pts_time:([\d.]+)", out)})
-    starts = [0.0] + [c for c in cuts if c < d - 2]
+    # Hook fix: never open on the source's slow intro, logo or fade. Skip its first seconds and start the Short at the
+    # busiest stretch of cuts (peak action), so frame 1 is already mid-motion.
+    head = min(2.5, d * 0.1) if d > 10 else 0.0
+    cuts = [c for c in cuts if c >= head]
+    best, best_n = head, -1
+    for c in [head] + cuts:
+        if c + total > d: break
+        n = sum(1 for x in cuts if c <= x < c + total)
+        if n > best_n: best, best_n = c, n
+    starts = [best] + [c for c in cuts if best < c < d - 2]
     segs, t = [], 0.0
     for i, s in enumerate(starts):
         nxt = starts[i+1] if i+1 < len(starts) else d
@@ -264,8 +279,9 @@ def pick_segments(src, total):
         if s + ln > d: continue
         segs.append((s, ln)); t += ln
         if t >= total: break
-    if t < total:   # few scene changes: one continuous run from the start
-        segs = [(0.0, min(d, total))]
+    if t < total:   # few scene changes: one continuous run from the peak-action point
+        st = best if best + total <= d else max(0.0, d - total)
+        segs = [(st, min(d - st, total))]
     return segs
 
 def wrap(s, n=16):
@@ -331,7 +347,7 @@ def overlay(words, hook, cta, total, credit):
     if cur: chunks.append(cur)
     caps = []
     for i, c in enumerate(chunks):
-        t0 = c[0]["t"] + 0.15; t1 = chunks[i+1][0]["t"] + 0.15 if i+1 < len(chunks) else total
+        t0 = c[0]["t"] + 0.05; t1 = chunks[i+1][0]["t"] + 0.05 if i+1 < len(chunks) else total
         caps.append((t0, t1, " ".join(x["w"] for x in c).upper()))
     d_ = WORK / "ov"; shutil.rmtree(d_, ignore_errors=True); d_.mkdir()
     cache = {}
@@ -354,7 +370,7 @@ def overlay(words, hook, cta, total, credit):
         im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         for k, line in enumerate(hl):
             put(im, 170 + k*gap, line, hsize, "pink" if k == len(hl) - 1 else "cyan")
-        if t > total - 2.6:
+        if t > total - CFG.get("cta_seconds", 1.8):
             for k, line in enumerate(wrap(cta.upper(), 19)[:2]): put(im, 1500 + k*115, line, 84, "yellow")
         else:
             for t0, t1, s in caps:
@@ -412,7 +428,7 @@ def main():
     s = check_script(script(clip))
     words = asyncio.run(tts(s["vo"], str(WORK / "vo.mp3")))
     vo_len = duration(WORK / "vo.mp3")
-    total = min(CFG["max_seconds"], vo_len + 2.8)
+    total = min(CFG["max_seconds"], vo_len + CFG.get("tail_seconds", 1.2))
     segs = pick_segments(src, total)
     BG = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=28:5,eq=brightness=-0.25"
     FG = "scale=1080:-2:flags=lanczos,crop=1080:'min(ih,1000)'"
@@ -429,7 +445,7 @@ def main():
             f"[o1]lowpass=f=280,lowpass=f=280,volume='0.5*(1-clip((t-{E:.2f})/0.4,0,1))':eval=frame[m];"
             f"[o2]volume='0.8*clip((t-{E:.2f})/0.4,0,1)':eval=frame[f];"
             f"[m][f]amix=inputs=2:normalize=0,atrim=0:{total}[bed];")
-    fc += f"[base][1:v]overlay=0:0[v];[2:a]adelay=150|150,volume=1.6,apad[vo];{duck}[vo][bed]amix=inputs=2:duration=shortest:normalize=0,atrim=0:{total},loudnorm=I=-15[a]"
+    fc += f"[base][1:v]overlay=0:0[v];[2:a]adelay=50|50,volume=1.6,apad[vo];{duck}[vo][bed]amix=inputs=2:duration=shortest:normalize=0,atrim=0:{total},loudnorm=I=-15[a]"
     credit = f"clip: {clip.get('uploader') or 'source'}"
     ov = remotion_overlay(words, s["hook"], s["cta"], total, credit) or overlay(words, s["hook"], s["cta"], total, credit)
     has_audio = "audio" in sh("ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(src))
