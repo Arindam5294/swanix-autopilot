@@ -26,4 +26,8 @@ jobs:
           if [ -f jobs/digest.md ]; then gh issue create --title "Job matches $(date -u +%F)" --body-file jobs/digest.md; rm jobs/digest.md; fi
       - run: |
           git config user.name "swanix-bot"; git config user.email "bot@users.noreply.github.com"
-          git add jobs/seen.json && (git diff --cached --quiet || (git commit -m "jobs: seen" && git pull --rebase -q && git push))
+          git add jobs/seen.json
+          if ! git diff --cached --quiet; then
+            git commit -m "jobs: seen"
+            for i in 1 2 3 4 5; do git pull --rebase -q && git push && break; echo "push raced, retry $i"; sleep $((i*7)); done
+          fi
