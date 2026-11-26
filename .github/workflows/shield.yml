@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 15
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy1.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -77,11 +77,24 @@ jobs:
           git config user.name "shield-audit-bot"
           git config user.email "shield-audit-bot@users.noreply.github.com"
           git add shield/data shield/site
-          git diff --cached --quiet || (git commit -m "refresh block $(python -c 'import json;print(json.load(open("shield/data/audit_latest.json"))["block"])')" && git pull --rebase -q && git push)
+          if ! git diff --cached --quiet; then
+            git commit -m "refresh block $(python -c 'import json;print(json.load(open("shield/data/audit_latest.json"))["block"])')"
+            # other bots (alpha, botbeat) push to main at the same minute: retry with a fresh rebase instead of failing
+            for i in 1 2 3 4 5; do git pull --rebase -q && git push && break; echo "push raced, retry $i"; sleep $((i*7)); done
+          fi
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: shield/site
+      # GitHub's artifact list lags a few seconds behind the upload ("No artifacts named github-pages"):
+      # wait, deploy, and retry once after a longer wait instead of failing the whole run.
+      - run: sleep 20
+      - id: deploy1
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - if: steps.deploy1.outcome == 'failure'
+        run: sleep 45
       - id: deploy
+        if: steps.deploy1.outcome == 'failure'
         uses: actions/deploy-pages@v4
