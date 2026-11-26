@@ -24,3 +24,4 @@ Every post, newest last.
 | 2026-11-20 22:04 | CarryMinati loses it playing GTA 6 😭 #shorts |  | https://youtube.com/shorts/NdVlVhr2IoU |
 | 2026-11-24 01:57 | IGN ka GTA 6 mein Donnie ka bura haal 😭 #shorts |  | https://youtube.com/shorts/69qRHS_ZBt4 |
 | 2026-11-25 23:25 | IShowSpeed loses it in GTA 6 😭 #shorts |  |  |
+| 2026-11-26 22:13 | HasanAbi loses it in GTA 6 😭 #shorts |  |  |
