@@ -42,3 +42,4 @@ Nothing posts until it says yes. Copy faults get one automatic fix and a re-chec
 - 2026-11-26 10:07 NO  (1 check) 'IShowSpeed loses it in GTA 6 😭 #shorts': length 4s is outside 8-60s
 - 2026-11-26 23:20 NO  (1 check) 'IShowSpeed ka GTA 6 mein bura haal 😭 #shorts': length 6s is outside 8-60s
 - 2026-11-27 00:57 NO  (1 check) 'Ludwig loses it driving in GTA 6 😭 #shorts': length 8s is outside 8-60s
+- 2026-11-27 10:12 NO  (1 check) "Ludwig thinks he's the BEST driver in GTA 6 💀 #shorts": length 6s is outside 8-60s
