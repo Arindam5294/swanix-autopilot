@@ -25,3 +25,4 @@ Every post, newest last.
 | 2026-11-24 01:57 | IGN ka GTA 6 mein Donnie ka bura haal 😭 #shorts |  | https://youtube.com/shorts/69qRHS_ZBt4 |
 | 2026-11-25 23:25 | IShowSpeed loses it in GTA 6 😭 #shorts |  |  |
 | 2026-11-26 22:13 | HasanAbi loses it in GTA 6 😭 #shorts |  |  |
+| 2026-11-27 22:58 | MrBeast Gaming walked the ENTIRE GTA 6 map 🚶 #shorts |  |  |
