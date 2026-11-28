@@ -1,7 +1,7 @@
 {
  "firstHeight": 969349,
- "lastHeight": 977931,
- "blocksIndexed": 8583,
+ "lastHeight": 977932,
+ "blocksIndexed": 8584,
  "timeline": [
   {
    "from": 969349,
@@ -1186,19 +1186,19 @@
    "from": 977899,
    "to": 977948,
    "claim": 7,
-   "reward": 3,
+   "reward": 8,
    "buy": 1
   }
  ],
  "dupCommitments": 0,
  "posContiguous": true,
  "heightsMonotonic": true,
- "uniqueTxids": 9101,
+ "uniqueTxids": 9102,
  "maxNotesPerTx": 80,
  "notesPerTxHist": {
   "1": 7530,
   "2": 669,
-  "5": 321,
+  "5": 322,
   "3": 234,
   "4": 137,
   "11": 12,
@@ -1237,15 +1237,11 @@
   "58": 2,
   "62": 1
  },
- "notes": 14746,
- "nullifiers": 11520,
+ "notes": 14751,
+ "nullifiers": 11525,
  "unspentNotes": 3226,
  "spentPct": 78.1,
  "rootHistory": [
-  {
-   "h": 977831,
-   "leaves": 14698
-  },
   {
    "h": 977832,
    "leaves": 14698
@@ -1645,11 +1641,15 @@
   {
    "h": 977931,
    "leaves": 14746
+  },
+  {
+   "h": 977932,
+   "leaves": 14751
   }
  ],
- "rootChanges": 22,
+ "rootChanges": 23,
  "rootLeavesMatchNotes": true,
- "latestRoot": "9147840510756048457077968125381941144247074493388207523687900556578416111486",
+ "latestRoot": "7900008263246667100747753609532574519144248772795441753640972366032845575899",
  "mintOutOfRange": 0,
  "unmintedIds": [
   1612,
@@ -2356,7 +2356,7 @@
  "soldOrClaimedNfSpent": 6074,
  "soldOrClaimedTotal": 6074,
  "activeNfAlreadySpent": 101,
- "btcTipHeight": 977931,
+ "btcTipHeight": 977932,
  "indexerLagBlocks": 0,
  "anonymitySet": 3226,
  "noteKinds": {
@@ -2364,7 +2364,7 @@
   "claim": 2722,
   "transfer": 550,
   "buy": 3352,
-  "reward": 4795
+  "reward": 4800
  },
  "activeListingAgeBuckets": {
   "<1 day": 8,
@@ -2377,53 +2377,41 @@
   {
    "assetId": 2914,
    "height": 969649,
-   "ageBlocks": 8282,
+   "ageBlocks": 8283,
    "lockTxid": "789fe1147b57db99b7e10183e37c591b00eeddf266eb983475ab42417a764687",
    "lockValue": 330
   },
   {
    "assetId": 3106,
    "height": 970316,
-   "ageBlocks": 7615,
+   "ageBlocks": 7616,
    "lockTxid": "0c3584c38489e0c7f79684748ab304f5aa05498cd67115da06ef31128d3e030d",
    "lockValue": 330
   },
   {
    "assetId": 577,
    "height": 970614,
-   "ageBlocks": 7317,
+   "ageBlocks": 7318,
    "lockTxid": "28518afc197e70a1786bee01871d8bdbc0eb575acd1e3682258e9cedf0794976",
    "lockValue": 330
   },
   {
    "assetId": 2241,
    "height": 970636,
-   "ageBlocks": 7295,
+   "ageBlocks": 7296,
    "lockTxid": "d13d4a3681006e7a680c057d672c1120379a881e4b18739a5ebbff90f51bcda3",
    "lockValue": 330
   },
   {
    "assetId": 868,
    "height": 970672,
-   "ageBlocks": 7259,
+   "ageBlocks": 7260,
    "lockTxid": "7a9bee9da9f439dc2310b3065e6a03fbd4a4842c6955851f83334ddb4bb2b2ca",
    "lockValue": 330
   }
  ],
- "medianActiveAgeBlocks": 2516,
+ "medianActiveAgeBlocks": 2517,
  "history": [
-  {
-   "time": "2026-11-25 03:15 UTC",
-   "height": 977459,
-   "notes": 14346,
-   "nullifiers": 11110,
-   "passed": 9,
-   "total": 9,
-   "sha256": "e450b98fe8db94560605eb8bb9d33bd627c4bcaeb084c0e4c152adda615fbb24",
-   "anomalies": [],
-   "anonymitySet": 3236,
-   "lag": 0
-  },
   {
    "time": "2026-11-25 03:30 UTC",
    "height": 977460,
@@ -5291,6 +5279,18 @@
    "anomalies": [],
    "anonymitySet": 3226,
    "lag": 0
+  },
+  {
+   "time": "2026-11-28 11:30 UTC",
+   "height": 977932,
+   "notes": 14751,
+   "nullifiers": 11525,
+   "passed": 9,
+   "total": 9,
+   "sha256": "a2bddf19f08f322c751833576f5ad4c836ed27b8797c36612538967dd911e142",
+   "anomalies": [],
+   "anonymitySet": 3226,
+   "lag": 0
   }
  ],
  "passStreak": 240,
@@ -5305,12 +5305,12 @@
   "soldHaveTxid": true,
   "claimedHaveTxid": true
  },
- "reportSha256": "a4ea2fa74e2c19b85cd49a1e41a31522b01a84488b31b8e6a88ed4ffde4e3736",
+ "reportSha256": "a2bddf19f08f322c751833576f5ad4c836ed27b8797c36612538967dd911e142",
  "reportCore": {
-  "lastHeight": 977931,
-  "notes": 14746,
-  "nullifiers": 11520,
-  "latestRoot": "9147840510756048457077968125381941144247074493388207523687900556578416111486",
+  "lastHeight": 977932,
+  "notes": 14751,
+  "nullifiers": 11525,
+  "latestRoot": "7900008263246667100747753609532574519144248772795441753640972366032845575899",
   "dupCommitments": 0,
   "rootLeavesMatchNotes": true,
   "soldOrClaimedNfSpent": 6074,
@@ -5337,10 +5337,10 @@
    "claimedHaveTxid": true
   }
  },
- "generatedAt": "2026-11-28 11:15 UTC",
+ "generatedAt": "2026-11-28 11:30 UTC",
  "anomalyLog": [],
  "pieceIndex": {
-  "asOf": 977931,
+  "asOf": 977932,
   "cols": [
    "mintedCount",
    "activeListings",
@@ -5356,10 +5356,10 @@
   "algorithm": "Ed25519",
   "publicKey": "9d474a1e0e9def90ea4ce04d35eb3ad5ff3263735eb22fe37bd63451849dbedb",
   "signedMessage": "reportSha256 (UTF-8 hex string)",
-  "signature": "85a97770d521f0ef227d02c74cc9016261d8fa3d0548689c0664800824a89fdf1150031c0dfc961c721e357f12ae6d451d20312f1d7d68b6c430148d6ce38e01",
-  "reportHeight": 977931,
+  "signature": "a9d45a8fc1eabe0d6a03f4997f7ea4e069586254017395d110f1bd33ab2a3a2f60b42d47b8c28d7baf569d93a3da3014614c1ca6403b53977dcb8617c4ce400b",
+  "reportHeight": 977932,
   "otsPending": true,
-  "otsLatestBase64": "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEIpOovp04sGbhc1JoeQaMVIrAahEiLMbjmqI7U/95ONzbwEO17AKURfvGfmhGzDmwL93II//AQC15U+qGK0RGLB3WspRl+FQjwIJrwg4dZsu0ktwqLNB9Dq1lVyTFtOFOnU6FRFGhhe+wXCPEgqByrHLyww5R/uRCrSEwFDwGm3ZXLEziPe9lTF7ocWW0I8SDGpwQcUqsatLtA3qGv6PZzwIrElnpRBrPB1aiwLmilPgjwINtkuh+Ka3e4Eebl/oJBhsRGMgIS+yN7ucsHrJ+EdGFKCPEEawq0TvAICuPQKdtHFJ8Ag9/jDS75DI4jImh0dHBzOi8vYnRjLmNhbGVuZGFyLmNhdGFsbGF4eS5jb23/8AgtE0DZVEVAUgjwIJZzKb4Yai3S2X4Nw9smazqprC+r77p/PjUU4tAAFJXICPAQ7NobVI0ocy31h+y+JZlrPQjxIP3RDrnTEXV90VSK4zpQGI7UYHbagCkkH0khPRODvov7CPEg5rc+lCp5f1X7TZYNdTaRsgVO3RaE3oIbwBXWLP+jolYI8CBcgPAIS3afKjJ8G/DBiJR6xGZ9o5GKeEukF7++0dmojAjxBGsKtE7wCKLAB9SYujFgAIPf4w0u+QyOLi1odHRwczovL2FsaWNlLmJ0Yy5jYWxlbmRhci5vcGVudGltZXN0YW1wcy5vcmf/8BCWHcAgwa9iXV/ahEH2hYJWCPEgiK432R5r8KHwrQI8UnNvJ1lJAmDKtvwdFvz6qMkWCzMI8SBm0/Aa8SxwSGzX83mOaey4c6DiG5pDblPhEqQoqkJ/wQjwINyvOL07mvqIC2n0fLIdD/LQlENXESqQ4QMM608ZhcPVCPEg5MF9CU9y6KsTK4llFdIO3jxsSolZsum7YMHIDGV/6YII8SB6FtudQwCADAELZlUDLfHSVvmHeowUQ2nEer4kaH6HDAjwIMXd4EiG7EJjz36VouYVmFknQADEUa1MhGX8xQB6rq/ZCPEEawq0TvAIDn2kTM22xiIAg9/jDS75DI4pKGh0dHBzOi8vZmlubmV5LmNhbGVuZGFyLmV0ZXJuaXR5d2FsbC5jb23wCPJg2xdj8cv5CPAQBa4ChhJ7V1BnZO4r/Lxc+AjxIIOaI4TANNTMUeoHGI+w4xUKRRdwhnBnekoxCM8ieXX/CPAgnUv2u/oM7uEkNgQ7Yk+VFRp7cv2E/VGXFUhKc8G8qj4I8CBzDYAnnsEzR3HLoL6ZBgnYtCFeIaBqiKnrArk2ta28qQjwIP3Vd9TTKC8pZfoYW7R102+kqtKFNKgkG5pKNudjh7NnCPEEawq0T/AIji56Msf6WuYAg9/jDS75DI4sK2h0dHBzOi8vYm9iLmJ0Yy5jYWxlbmRhci5vcGVudGltZXN0YW1wcy5vcmc=",
+  "otsLatestBase64": "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEIor3fGfCPMix1GDNXb1rUyDbtJ7h5fDZhJTiWfdkR4ULwEGksBn41HvPFDX6hJyyeK9wI//AQmADVPdH2JN0QCczCuh4MDAjwIDwBLFPjQpnSpo2sqsH6QVYmm6Vmb/UL/35PKp8FfRQACPEgefbD6N53i5pcO8d3/3Jnkvs/HTgbOAZb1sIZOqGQqw0I8QRrCrtc8AinD6J7dViFKQCD3+MNLvkMjiMiaHR0cHM6Ly9idGMuY2FsZW5kYXIuY2F0YWxsYXh5LmNvbf/wCKmK8mGku9IqCPAgwc00xPHnIgj4o6vqzDyZYT5Vhf4Xzqh8CcjKa75Z84AI8CCnlMmxVpUU46zrivN1u9B0v94fZR8G4Z3DQD7CvG51kAjwECEpU0cByJPCNQgfWdkhB8gI8SC614ShyrAK2fIdX8kp0HcIF4o8yYkY9FufgkDtS+WAJgjxIPp43ZA2/Zx6g4LOVLHt9FbehlkjXaocOrKMiqyAc76KCPEEawq7XPAIO6nZIP9g8WYAg9/jDS75DI4uLWh0dHBzOi8vYWxpY2UuYnRjLmNhbGVuZGFyLm9wZW50aW1lc3RhbXBzLm9yZ//wELYIucBW2vUNdmGKXpl2Ai4I8SD0wudkapVmBHixilJykmKaypcGy7nCQWcdLbIwfPcegQjwIMqeXWFH2EsO2u1mcUJ4+/75aE1PvxM5E4mEoBeDlhCMCPAgQKk89zQMJC6CI318lJ1au+BZ0Qtp2Q75vDRF4dFA5vII8CBH5QfBf06BhSpOYSyOde8BJX7MZaZLThJnSASNaMV6YgjxBGsKu13wCJQap8JCwjHPAIPf4w0u+QyOKShodHRwczovL2Zpbm5leS5jYWxlbmRhci5ldGVybml0eXdhbGwuY29t8AjtOnbnpS35EAjwEFpKUL12MLO2kXzWI7C+dP8I8CDNzB3I4Yb2jkkcWcefbg8wi7/gWuarYiMZ+SsDZy/tDwjwIEyR153jj4XvDHof+BKcx8djrN8Z/w5FIDHlSkiH0R4dCPAgxiJG+ZXeo7TzpytiuTvqph+YR45gHm7H4Se+Kuc74tgI8QRrCrtd8AhWi+DDXzQO3gCD3+MNLvkMjiwraHR0cHM6Ly9ib2IuYnRjLmNhbGVuZGFyLm9wZW50aW1lc3RhbXBzLm9yZw==",
   "confirmed": {
    "reportHeight": 977922,
    "bitcoinBlock": 977924,
